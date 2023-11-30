@@ -4,6 +4,7 @@
 # Specific includes
 
 ## Build System
+!/.config/
 !NuGet.Config
 !Directory.Build.props
 
