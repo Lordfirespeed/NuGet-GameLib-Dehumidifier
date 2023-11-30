@@ -1,0 +1,37 @@
+# Exclude everything
+/*
+
+# Specific includes
+
+## Build System/Scripts
+!NuGet.Config
+!Directory.Build.props
+!build.sh
+!build.ps1
+!build.cmd
+
+## Markdowns
+!*.md
+!/LICENSE
+
+## important Git files
+!.gitmodules
+!.gitignore
+!.gitattributes
+!.git-blame-ignore-revs
+
+## GitHub specific
+!/.github/
+
+## 'Games' folder
+!/Games/
+
+## Solution
+!/NuGet-GameLib-Dehumidifier.sln
+
+### Build Project
+!/build/
+/build/[Bb]in/
+/build/[Oo]bj/
+
+# Explicit exceptions/ignores
