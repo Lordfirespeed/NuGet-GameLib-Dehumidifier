@@ -3,9 +3,11 @@
 
 # Specific includes
 
-## Build System/Scripts
+## Build System
 !NuGet.Config
 !Directory.Build.props
+
+## Build Scripts
 !build.sh
 !build.ps1
 !build.cmd
