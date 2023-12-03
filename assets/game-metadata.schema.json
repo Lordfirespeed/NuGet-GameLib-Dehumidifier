@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Game Metadata",
+  "description": "Describes a game and its corresponding NuGet GameLibs package for the NuGet GameLib Dehumidifier project",
+  "type": "object",
+  "properties": {
+    "steam": {
+      "description": "Steam game metadata.",
+      "type": "object",
+      "properties": {
+        "appId": {
+          "description": "Steam App ID",
+          "type": "integer"
+        }
+      }
+    },
+    "processSettings": {
+      "description": "Configuration for processing in order to create the GameLibs package",
+      "type": "object",
+      "properties": {
+        "excludeAssemblies": {
+          "description": "List of assembly names to exclude from the GameLibs package",
+          "type": "array",
+          "items": {
+            "description": "Assembly name to exclude from the GameLibs package",
+            "type": "string"
+          }
+        },
+        "assembliesToPublicise": {
+          "description": "List of assembly names to 'publicise' - all types, fields, methods, and properties will be set to public.",
+          "type": "array",
+          "items": {
+            "description": "Assembly name that will be 'publicised'",
+            "type": "string"
+          }
+        },
+        "isIL2Cpp": {
+          "description": "Indicator describing whether the assemblies were built using IL2CPP",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": ["excludeAssemblies", "assembliesToPublicise"]
+    },
+    "nuget": {
+      "description": "NuGet package metadata.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "NuGet package name/identifier",
+          "type": "string"
+        },
+        "description": {
+          "description": "NuGet package description",
+          "type": "string"
+        },
+        "authors": {
+          "description": "NuGet package authors",
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "minItems": 1
+        },
+        "frameworkTargets": {
+          "description": "Entries that map NuGet package Target Framework Moniker to package dependencies under that framework.",
+          "type": "array",
+          "items": {
+            "description": "Entry associating a TFM with some NuGet package dependencies.",
+            "type": "object",
+            "properties": {
+              "tfm": {
+                "description": "Target Framework Moniker",
+                "$ref": "dotnet-target-framework-moniker.schema.json"
+              },
+              "dependencies": {
+                "description": "List of NuGet package dependency specifiers",
+                "type": "array",
+                "items": {
+                  "description": "NuGet package dependency specifier",
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "description": "NuGet package dependency package name",
+                      "type": "string"
+                    },
+                    "version":
+                    {
+                      "description": "NuGet package dependency package version",
+                      "$ref": "semver.schema.json"
+                    }
+                  },
+                  "required": [ "name", "version" ]
+                }
+              }
+            },
+            "required": [ "tfm", "dependencies" ]
+          },
+          "minItems": 1
+        }
+      },
+      "required": [ "name", "description", "frameworkTargets" ]
+    },
+    "steamBuildIdToGameVersionMapping": {
+      "description": "Entries that map Steam build IDs to actual game versions.",
+      "type": "array",
+      "items": {
+        "description": "Entry mapping Steam build ID to an actual game version.",
+        "type": "object",
+        "properties": {
+          "buildId": {
+            "description": "Steam build ID",
+            "type": "integer"
+          },
+          "gameVersion": {
+            "description": "Actual game version",
+            "type": "string",
+            "$ref": "semver.schema.json"
+          }
+        },
+        "required": [ "buildId", "gameVersion" ]
+      }
+    }
+  },
+  "required": [ "steam", "nuget", "processSettings", "steamBuildIdToGameVersionMapping" ]
+}
