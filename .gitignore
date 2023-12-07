@@ -26,6 +26,9 @@
 ## GitHub specific
 !/.github/
 
+## 'assets' folder
+!/assets/
+
 ## 'Games' folder
 !/Games/
 
