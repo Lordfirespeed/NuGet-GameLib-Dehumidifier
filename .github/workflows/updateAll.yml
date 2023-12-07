@@ -1,0 +1,34 @@
+name: Update All GameLibs
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  list-games:
+    name: List games in repository 
+    runs-on: ubuntu-latest
+    outputs: 
+      games: ${{ steps.list.outputs.folders }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+    
+      - name: List games
+        id: list
+        uses: kmanimaran/list-folder-action@v4
+        with:
+          path: ./Games
+          
+  update-all:
+    name: Run update task for all games 
+    runs-on: ubuntu-latest
+    needs: list-games
+    strategy: 
+      matrix:
+        game: ${{ fromJson(needs.list-games.outputs.games) }}
+    steps:
+      - name: Update GameLibs
+        uses: ./.github/workflows/update.yml
+        with:
+          game: ${{ matrix.game }}
+      
