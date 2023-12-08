@@ -5,4 +5,4 @@ An automated utility for publicising assemblies (GameLibs) from Steam, packaging
 
 ## Acknowledgements 
 
-- [BepInEx/BepInEx.NuGetUpload.Service](https://github.com/BepInEx/BepInEx.NuGetUpload) for inspiration and publicising logic.
+- [BepInEx/BepInEx.NuGetUpload.Service](https://github.com/BepInEx/BepInEx.NuGetUpload.Service) for inspiration and publicising logic.
