@@ -12,8 +12,30 @@
         "appId": {
           "title": "Steam App ID",
           "type": "integer"
+        },
+        "gameDistDepots": {
+          "title": "Game distribution depots",
+          "description": "List of depots to generate GameLibs packages from",
+          "type": "array",
+          "items": {
+            "title": "Steam Depot Metadata",
+            "type": "object",
+            "properties": {
+              "depotId": {
+                "title": "Steam Depot ID",
+                "type": "integer"
+              },
+              "distributionName": {
+                "title": "Distribution Name",
+                "description": "Discriminator string that will become part of the NuGet package name for this depot.",
+                "type": "string"
+              }
+            },
+            "required": ["depotId", "distributionName"]
+          }
         }
-      }
+      },
+      "required": ["appId", "gameDistDepots"]
     },
     "processSettings": {
       "title": "Process settings",
