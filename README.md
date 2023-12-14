@@ -14,6 +14,11 @@ A GameLibs package is a publicly available NuGet package that provides stubbed .
 They are invaluable to modders as they significantly reduce the complexity of configuring CI/CD for their 
 projects without violating copyright laws or Steam terms of service by redistributing proprietary intellectual property.
 
+### What's with the name 'Dehumidifier'?
+
+Because I have an elite sense of humour (I am not interested in differences of opinion at this time) - I like to imagine that 
+this project 'condenses' the Steam games into their GameLibs packages.
+
 ### Why build this utility? 
 
 A large collection of GameLibs is maintained by modding communities and the [BepInEx organisation](https://github.com/BepInEx). 
