@@ -136,9 +136,30 @@
           "gameVersion": {
             "title": "Game Version",
             "$ref": "semver.schema.json"
+          },
+          "depots": {
+            "title": "Version Depot Metadata Mapping",
+            "description": "Entries that provide distribution depot metadata for this game version",
+            "type": "array",
+            "items": {
+              "title": "Version Depot Metadata Entry",
+              "type": "object",
+              "properties": {
+                "depotId": {
+                  "title": "Steam Depot ID",
+                  "type": "integer"
+                },
+                "manifestId": {
+                  "title": "Steam Manifest ID",
+                  "description": "Manifest ID of the depot's contents on the 'public' branch for this game version",
+                  "type": "integer"
+                }
+              },
+              "required": ["depotId", "manifestId"]
+            }
           }
         },
-        "required": [ "buildId", "gameVersion", "timeUpdated" ]
+        "required": [ "buildId", "gameVersion", "timeUpdated", "depots" ]
       }
     }
   },
