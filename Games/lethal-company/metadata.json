@@ -1,7 +1,13 @@
 {
   "$schema": "../../assets/game-metadata.schema.json#",
   "steam": {
-    "appId": 1966720
+    "appId": 1966720,
+    "gameDistDepots": [
+      {
+        "depotId": 1966721,
+        "distributionName": "windows"
+      }
+    ]
   },
   "nuget": {
     "name": "LethalCompany.GameLibs.Steam",
