@@ -137,13 +137,13 @@
       },
       "required": [ "name", "description", "frameworkTargets" ]
     },
-    "steamBuildIdToGameVersionMapping": {
-      "title": "Build ID to Game Version Mapping",
-      "description": "Entries that map Steam build IDs to actual game versions.",
+    "gameVersions": {
+      "title": "Game Versions",
+      "description": "Steam game version-specific metadata.",
       "type": "array",
       "items": {
-        "title": "Build ID to Version Entry",
-        "description": "Entry mapping Steam build ID to an actual game version.",
+        "title": "Game Version Entry",
+        "description": "Metadata for a particular game version.",
         "type": "object",
         "properties": {
           "buildId": {
@@ -185,5 +185,5 @@
       }
     }
   },
-  "required": [ "steam", "nuget", "processSettings", "steamBuildIdToGameVersionMapping" ]
+  "required": [ "steam", "nuget", "processSettings", "gameVersions" ]
 }
