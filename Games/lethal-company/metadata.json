@@ -41,7 +41,7 @@
       }
     ]
   },
-  "steamBuildIdToGameVersionMapping": [
+  "gameVersions": [
     {
       "buildId": 12679582,
       "timeUpdated": 1699725759,
