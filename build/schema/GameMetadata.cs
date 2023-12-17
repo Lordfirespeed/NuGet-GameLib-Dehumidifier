@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 using System.Text.Json.Serialization;
 using Json.Schema;
 using Json.Schema.Serialization;
@@ -18,14 +19,18 @@ public class GameMetadata
 	public ProcessSettingsGameMetadata ProcessSettings { get; set; }
 	[JsonPropertyName("nuget")]
 	public NuGetGameMetadata Nuget { get; set; }
-	[JsonPropertyName("steamBuildIdToGameVersionMapping")]
-	public BuildIdToGameVersionMapping SteamBuildIdToGameVersionMapping { get; set; }
+	[JsonPropertyName("gameVersions")]
+	[JsonConverter(typeof(GameVersionMapJsonConverter))]
+	public GameVersionMap GameVersions { get; set; }
 }
 
 public class SteamGameMetadata
 {
 	[JsonPropertyName("appId")]
 	public int AppId { get; set; }
+	[JsonPropertyName("gameDistDepots")]
+	[JsonConverter(typeof(DistributionDepotMapJsonConverter))]
+	public Dictionary<int, SteamGameDistributionDepot> DistributionDepots { get; set; }
 }
 
 public class ProcessSettingsGameMetadata
@@ -50,12 +55,12 @@ public class NuGetGameMetadata
 	public List<FrameworkTarget> FrameworkTargets { get; set; }
 }
 
-public class BuildIdToGameVersionMapping : List<BuildIdToVersionEntry>
+public class GameVersionMap : Dictionary<int, GameVersionEntry>
 {
-	BuildIdToVersionEntry? Latest() => this.MaxBy(x => x.TimeUpdated);
+	public GameVersionEntry? Latest() => Values.Max();
 }
 
-public class BuildIdToVersionEntry: IComparable<BuildIdToVersionEntry>, IEquatable<BuildIdToVersionEntry>
+public class GameVersionEntry: IComparable<GameVersionEntry>, IEquatable<GameVersionEntry>
 {
 	[JsonPropertyName("buildId")]
 	public int BuildId { get; set; }
@@ -63,28 +68,28 @@ public class BuildIdToVersionEntry: IComparable<BuildIdToVersionEntry>, IEquatab
 	public int TimeUpdated { get; set; }
 	[JsonPropertyName("gameVersion")]
 	public string GameVersion { get; set; }
+	[JsonPropertyName("depots")] 
+	[JsonConverter(typeof(DepotVersionMapJsonConverter))]
+	public Dictionary<int, SteamGameDepotVersion> Depots { get; set; }
 
-	public bool Equals(BuildIdToVersionEntry other)
+	public bool Equals(GameVersionEntry? other)
 	{
 		if (ReferenceEquals(null, other)) return false;
 		if (ReferenceEquals(this, other)) return true;
 		return BuildId == other.BuildId;
 	}
 
-	public override bool Equals(object obj)
+	public override bool Equals(object? obj)
 	{
 		if (ReferenceEquals(null, obj)) return false;
 		if (ReferenceEquals(this, obj)) return true;
 		if (obj.GetType() != this.GetType()) return false;
-		return Equals((BuildIdToVersionEntry)obj);
+		return Equals((GameVersionEntry)obj);
 	}
 
-	public override int GetHashCode()
-	{
-		return BuildId;
-	}
+	public override int GetHashCode() => BuildId;
 
-	public int CompareTo(BuildIdToVersionEntry other)
+	public int CompareTo(GameVersionEntry? other)
 	{
 		if (ReferenceEquals(this, other)) return 0;
 		if (ReferenceEquals(null, other)) return 1;
@@ -106,4 +111,39 @@ public class NuGetDependency
 	public string Name { get; set; }
 	[JsonPropertyName("version")]
 	public string Version { get; set; }
+}
+
+public class SteamGameDistributionDepot
+{
+	[JsonPropertyName("depotId")]
+	public int DepotId { get; set; }
+	[JsonPropertyName("distributionName")]
+	public string DistributionName { get; set; }
+}
+
+
+public class SteamGameDepotVersion
+{
+	[JsonPropertyName("depotId")]
+	public int DepotId { get; set; }
+	[JsonPropertyName("manifestId")]
+	[JsonConverter(typeof(BigIntegerJsonConverter))]
+	public BigInteger ManifestId { get; set; }
+}
+
+public class DistributionDepotMapJsonConverter : 
+	EntriesDictionaryJsonConverter<Dictionary<int, SteamGameDistributionDepot>, int, SteamGameDistributionDepot>
+{
+	public override int KeyForValue(SteamGameDistributionDepot value) => value.DepotId;
+}
+
+public class GameVersionMapJsonConverter : EntriesDictionaryJsonConverter<GameVersionMap, int, GameVersionEntry>
+{
+	public override int KeyForValue(GameVersionEntry value) => value.BuildId;
+}
+
+public class DepotVersionMapJsonConverter :
+	EntriesDictionaryJsonConverter<Dictionary<int, SteamGameDepotVersion>, int, SteamGameDepotVersion>
+{
+	public override int KeyForValue(SteamGameDepotVersion value) => value.DepotId;
 }

@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading.Tasks;
+using Build.Schema;
 using Cake.Common;
 using Cake.Common.IO;
 using Cake.Core;
@@ -68,25 +70,32 @@ public sealed class RegisterJsonSchemasTask : FrostingTask<BuildContext>
 [TaskName("Prepare")]
 [IsDependentOn(typeof(CleanTask))]
 [IsDependentOn(typeof(RegisterJsonSchemasTask))]
-public sealed class PrepareTask : FrostingTask<BuildContext>
+public sealed class PrepareTask : AsyncFrostingTask<BuildContext>
 {
-    public static JsonSerializerOptions GameMetadataSerializerOptions = new JsonSerializerOptions
+    public static JsonSerializerOptions GameMetadataSerializerOptions = new()
     {
-        Converters = { new ValidatingJsonConverter() }
+        Converters =
+        {
+            new ValidatingJsonConverter(),
+        },
+        WriteIndented = true,
     };
 
-    public static Schema.GameMetadata DeserializeGameMetadata(BuildContext context)
+    public async Task<GameMetadata> DeserializeGameMetadata(BuildContext context)
     {
         if (context.GameDirectory.GetDirectoryName().Equals("Games"))
             throw new ArgumentException("No game folder name provided. Supply one with the '--game [folder name]' switch.");
         
-        var gameDataPlain = File.ReadAllText(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
-        return JsonSerializer.Deserialize<Schema.GameMetadata>(gameDataPlain, GameMetadataSerializerOptions);
+        context.Log.Information("Deserializing game metadata ...");
+        await using FileStream gameDataStream = File.OpenRead(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
+        
+        return await JsonSerializer.DeserializeAsync<Schema.GameMetadata>(gameDataStream, GameMetadataSerializerOptions)
+            ?? throw new ArgumentException("Game metadata could not be deserialized.");
     }
     
-    public override void Run(BuildContext context)
+    public override async Task RunAsync(BuildContext context)
     {
-        context.GameMetadata = DeserializeGameMetadata(context);
+        context.GameMetadata = await DeserializeGameMetadata(context);
         context.Environment.WorkingDirectory = context.GameDirectory;
     }
 }
@@ -97,7 +106,7 @@ public sealed class CheckPackageUpToDateTask : FrostingTask<BuildContext>
 {
     public override void Run(BuildContext context)
     {
-        
+        var mostRecentKnownVersion = context.GameMetadata.GameVersions.Latest();
     }
 }
 
@@ -105,6 +114,8 @@ public sealed class CheckPackageUpToDateTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(CheckPackageUpToDateTask))]
 public sealed class DownloadAssembliesTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+
     public override void Run(BuildContext context)
     {
         
@@ -114,6 +125,8 @@ public sealed class DownloadAssembliesTask : FrostingTask<BuildContext>
 [TaskName("DownloadNuGetDependencies")]
 public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    
     public override void Run(BuildContext context)
     {
         
@@ -124,6 +137,8 @@ public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
 public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    
     public override void Run(BuildContext context)
     {
         
@@ -135,6 +150,8 @@ public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<Build
 [IsDependentOn(typeof(ListAssembliesFromNuGetDependenciesTask))]
 public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    
     public override void Run(BuildContext context)
     {
         
@@ -145,6 +162,8 @@ public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(FilterAssembliesTask))]
 public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    
     public override void Run(BuildContext context)
     {
         
@@ -155,6 +174,8 @@ public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(StripAndPubliciseAssembliesTask))]
 public sealed class MakePackageTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    
     public override void Run(BuildContext context)
     {
         
@@ -165,6 +186,8 @@ public sealed class MakePackageTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(MakePackageTask))]
 public sealed class PushNuGetTask : FrostingTask<BuildContext>
 {
+    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    
     public override void Run(BuildContext context)
     {
         
