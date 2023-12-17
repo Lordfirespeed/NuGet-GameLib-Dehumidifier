@@ -6,8 +6,7 @@ using Cake.Core;
 using Cake.Core.Diagnostics;
 using Cake.Core.IO;
 using Cake.Frosting;
-using Gameloop.Vdf;
-using Gameloop.Vdf.Linq;
+using ValveKeyValue;
 
 namespace Build;
 
@@ -30,12 +29,26 @@ public abstract class SteamCmdTask : AsyncFrostingTask<BuildContext>
 
         using var process = new Process();
         process.StartInfo = startInfo;
+
+        var output = new MemoryStream();
+        var outputWriter = new StreamWriter(output);
+        outputWriter.AutoFlush = true;
+
+        process.OutputDataReceived += async (sender, args) =>
+        {
+            await outputWriter.WriteLineAsync(args.Data);
+        };
+        
         process.Start();
         await process.StandardInput.WriteAsync("\u0004");
-        process.StandardInput.Close();
+        process.BeginOutputReadLine();
+        
         await process.WaitForExitAsync();
+        await process.StandardInput.DisposeAsync();
+        await outputWriter.DisposeAsync();
+        
         if (process.ExitCode != 0) throw new Exception("SteamCMD returned exit code " + process.ExitCode + ".");
-        return process.StandardOutput;
+        return new StreamReader(new MemoryStream(output.GetBuffer()));
     }
 }
 
@@ -43,6 +56,56 @@ public abstract class SteamCmdTask : AsyncFrostingTask<BuildContext>
 [IsDependentOn(typeof(PrepareTask))]
 public class FetchSteamAppInfoTask : SteamCmdTask
 {
+    protected static readonly KVSerializer VdfSerializer = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
+
+    protected async Task<MemoryStream> ExtractAppInfo(StreamReader rawAppInfoStream)
+    {
+        var writtenAppInfo = new MemoryStream();
+        var appInfoWriter = new StreamWriter(writtenAppInfo);
+        appInfoWriter.AutoFlush = true;
+        
+        bool withinAppInfo = false;
+        int depth = 0;
+        string? currentLine;
+        while ((currentLine = await rawAppInfoStream.ReadLineAsync()) != null)
+        {
+            if (!withinAppInfo && currentLine.StartsWith("AppID"))
+            {
+                withinAppInfo = true;
+                continue;
+            }
+
+            if (withinAppInfo)
+            {
+                await appInfoWriter.WriteLineAsync(currentLine);
+            }
+
+            if (withinAppInfo && currentLine.Trim().Equals("{"))
+            {
+                depth += 1;
+                continue;
+            }
+            
+            if (withinAppInfo && currentLine.Trim().Equals("}"))
+            {
+                depth -= 1;
+                if (depth == 0) break;
+                continue;
+            }
+            
+        }
+        
+        var appInfoLength = writtenAppInfo.Length;
+        await appInfoWriter.DisposeAsync();
+        if (!withinAppInfo) throw new Exception("Couldn't find app info in SteamCMD output.");
+        
+        Console.WriteLine(await new StreamReader(new MemoryStream(writtenAppInfo.GetBuffer())).ReadToEndAsync());
+
+        var unreadAppInfo = new MemoryStream(writtenAppInfo.GetBuffer());
+        unreadAppInfo.SetLength(appInfoLength);
+        return unreadAppInfo;
+    }
+    
     protected async Task<SteamAppInfo> SteamCmdAppInfo(BuildContext context, int appId)
     {
         using var rawAppInfoStream = await RawSteamCmdOutput(
@@ -51,19 +114,9 @@ public class FetchSteamAppInfoTask : SteamCmdTask
                 .AppendSwitch("+app_info_print", appId.ToString())
         );
 
-        string? currentLine;
-        var foundAppInfo = false;
-        while ((currentLine = await rawAppInfoStream.ReadLineAsync()) != null)
-        {
-            if (!currentLine.StartsWith("AppID")) continue;
+        var appInfo = await ExtractAppInfo(rawAppInfoStream);
 
-            foundAppInfo = true;
-            break;
-        }
-
-        if (!foundAppInfo) throw new Exception("Couldn't find app info in SteamCMD output.");
-
-        return SteamAppInfo.FromVProperty(VdfConvert.Deserialize(await rawAppInfoStream.ReadToEndAsync()));
+        return VdfSerializer.Deserialize<SteamAppInfo>(appInfo);
     }
     
     public override async Task RunAsync(BuildContext context)
@@ -74,25 +127,17 @@ public class FetchSteamAppInfoTask : SteamCmdTask
     }
 }
 
-public class SteamAppInfo
+public class SteamAppInfoCommon
 {
-    public string Name { get; private set; }
-    public int LatestBuildId { get; private set; }
-    public int TimeUpdated { get; private set; }
+    [KVProperty("name")]
+    public string Name { get; set; }
+}
 
-    public static SteamAppInfo FromVProperty(VProperty appInfo)
-    {
-        dynamic appInfoAccess = appInfo;
-        dynamic publicBranch = appInfoAccess.Value.depots.branches["public"];
-
-        return new SteamAppInfo
-        {
-            Name = appInfoAccess.Value.common.name.Value,
-            LatestBuildId = Int32.Parse(publicBranch.buildid.Value),
-            TimeUpdated = Int32.Parse(publicBranch.timeupdated.Value),
-        };
-    }
-
+public class SteamAppInfo
+{   
+    [KVProperty("common")]
+    public SteamAppInfoCommon Common { get; set; }
+    
     public override string ToString() => 
-        $"SteamAppInfo for {Name}: Latest build {LatestBuildId}, updated at {TimeUpdated}";
+        $"SteamAppInfo for {Common.Name}";
 }

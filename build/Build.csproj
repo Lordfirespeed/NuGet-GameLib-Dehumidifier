@@ -8,7 +8,7 @@
   </PropertyGroup>
   
   <ItemGroup>
-    <PackageReference Include="Gameloop.Vdf" Version="0.6.2"/>
+    <PackageReference Include="ValveKeyValue" Version="0.9.*"/>
     <PackageReference Include="JsonSchema.Net" Version="5.4.1"/>
     <PackageReference Include="Cake.Frosting" Version="4.0.0" />
     <PackageReference Include="Cake.Git" Version="3.0.0" />
