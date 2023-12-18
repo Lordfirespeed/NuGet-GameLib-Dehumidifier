@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Numerics;
 using System.Threading.Tasks;
 using Cake.Core;
 using Cake.Core.Diagnostics;
@@ -116,7 +119,8 @@ public class FetchSteamAppInfoTask : SteamCmdTask
 
         var appInfo = await ExtractAppInfo(rawAppInfoStream);
 
-        return VdfSerializer.Deserialize<SteamAppInfo>(appInfo);
+        var kvAppInfo = VdfSerializer.Deserialize(appInfo);
+        return SteamAppInfo.FromKv(kvAppInfo);
     }
     
     public override async Task RunAsync(BuildContext context)
@@ -127,17 +131,172 @@ public class FetchSteamAppInfoTask : SteamCmdTask
     }
 }
 
-public class SteamAppInfoCommon
-{
-    [KVProperty("name")]
-    public string Name { get; set; }
-}
-
 public class SteamAppInfo
 {   
-    [KVProperty("common")]
-    public SteamAppInfoCommon Common { get; set; }
+    public int AppId { get; set; }
+    public string Name { get; set; }
+    public Dictionary<int, SteamAppDepot> Depots { get; set; } = new();
+    public Dictionary<string, SteamAppBranch> Branches { get; set; } = new();
+
+    public class SteamAppDepot
+    {
+        public int DepotId { get; set; }
+        public Dictionary<string, SteamAppManifest> Manifests { get; set; } = new();
+
+        public static SteamAppDepot FromKv(KVObject kvAppDepot)
+        {
+            var appDepot = new SteamAppDepot();
+            appDepot.PopulateFromKvAppDepot(kvAppDepot);
+            return appDepot;
+        }
+
+        protected void PopulateFromKvAppDepot(KVObject kvAppDepot)
+        {
+            DepotId = int.Parse(kvAppDepot.Name);
+            foreach (var kvChild in kvAppDepot.Children)
+            {
+                if (kvChild == null) continue;
+                if (kvChild.Name == "manifests")
+                {
+                    PopulateFromKvAppDepotManifests(kvChild);
+                    continue;
+                }
+            }
+        }
+
+        protected void PopulateFromKvAppDepotManifests(KVObject kvAppDepotManifests)
+        {
+            foreach (var kvChild in kvAppDepotManifests.Children)
+            {
+                if (kvChild == null) continue;
+                Manifests.Add(kvChild.Name, SteamAppManifest.FromKv(kvChild));
+            }
+        }
+    }
+
+    public class SteamAppManifest
+    {
+        public string BranchName { get; set; }
+        public BigInteger ManifestId { get; set; }
+
+        public static SteamAppManifest FromKv(KVObject kvAppManifest)
+        {
+            var appManifest = new SteamAppManifest();
+            appManifest.PopulateFromKvAppManifest(kvAppManifest);
+            return appManifest;
+        }
+
+        protected void PopulateFromKvAppManifest(KVObject kvAppManifest)
+        {
+            BranchName = kvAppManifest.Name;
+            foreach (var kvChild in kvAppManifest.Children)
+            {
+                if (kvChild == null) continue;
+                if (kvChild.Name == "gid")
+                {
+                    ManifestId = BigInteger.Parse((string)kvChild.Value);
+                    continue;
+                }
+            }
+        }
+    }
+
+    public class SteamAppBranch
+    {
+        public string BranchName { get; set; }
+        public int BuildId { get; set; }
+        public int TimeUpdated { get; set; }
+
+        public static SteamAppBranch FromKv(KVObject kvAppBranch)
+        {
+            var appBranch = new SteamAppBranch();
+            appBranch.PopulateFromKvAppBranch(kvAppBranch);
+            return appBranch;
+        }
+        
+        protected void PopulateFromKvAppBranch(KVObject kvAppBranch)
+        {
+            BranchName = kvAppBranch.Name;
+            foreach (var kvChild in kvAppBranch.Children)
+            {
+                if (kvChild == null) continue;
+                if (kvChild.Name == "buildid")
+                {
+                    BuildId = int.Parse((string)kvChild.Value);
+                    continue;
+                }
+                if (kvChild.Name == "timeupdated")
+                {
+                    TimeUpdated = int.Parse((string)kvChild.Value);
+                    continue;
+                }
+            }
+        }
+    }
+
+    public static SteamAppInfo FromKv(KVObject kvAppInfo)
+    {
+        var appInfo = new SteamAppInfo();
+        appInfo.PopulateFromKvAppInfo(kvAppInfo);
+        return appInfo;
+    }
+
+    protected void PopulateFromKvAppInfo(KVObject kvAppInfo)
+    {
+        AppId = int.Parse(kvAppInfo.Name);
+        foreach (var kvChild in kvAppInfo.Children)
+        {
+            if (kvChild == null) continue;
+            if (kvChild.Name == "common")
+            {
+                PopulateFromKvCommon(kvChild);
+                continue;
+            }
+            if (kvChild.Name == "depots")
+            {
+                PopulateFromKvDepots(kvChild);
+                continue;
+            }
+        }
+    }
     
-    public override string ToString() => 
-        $"SteamAppInfo for {Common.Name}";
+    protected void PopulateFromKvCommon(KVObject kvCommon)
+    {
+        foreach (var kvChild in kvCommon.Children)
+        {
+            if (kvChild == null) continue;
+            if (kvChild.Name == "name")
+            {
+                Name = (string)kvChild.Value;
+                continue;
+            }
+        }
+    }
+
+    protected void PopulateFromKvDepots(KVObject kvDepots)
+    {
+        foreach (var kvChild in kvDepots.Children)
+        {
+            if (kvChild == null) continue;
+            if (kvChild.Name == "branches")
+            {
+                PopulateFromKvBranches(kvChild);
+                continue;
+            }
+            if (int.TryParse(kvChild.Name, CultureInfo.InvariantCulture, out var depotId))
+            {
+                Depots.Add(depotId, SteamAppDepot.FromKv(kvChild));
+                continue;
+            }
+        }
+    }
+
+    protected void PopulateFromKvBranches(KVObject kvBranches)
+    {
+        foreach (var kvChild in kvBranches.Children)
+        {
+            if (kvChild == null) continue;
+            Branches.Add(kvChild.Name, SteamAppBranch.FromKv(kvChild));
+        }
+    }
 }
