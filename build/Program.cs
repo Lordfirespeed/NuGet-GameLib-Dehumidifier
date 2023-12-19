@@ -190,7 +190,8 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
             gameDataStream, 
             context.GameMetadata, 
             new JsonSerializerOptions {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
             }
         );
 
