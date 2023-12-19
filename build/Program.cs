@@ -128,12 +128,18 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
         if (mostRecentKnownVersion == null) return false;
         
         var currentVersion = context.GameAppInfo.Branches["public"];
-        if (currentVersion.TimeUpdated > mostRecentKnownVersion.TimeUpdated)
+        if (currentVersion.BuildId != mostRecentKnownVersion.BuildId)
         {
-            await OpenVersionNumberPullRequest(context);
-            return false;
+            if (currentVersion.TimeUpdated > mostRecentKnownVersion.TimeUpdated)
+            {
+                await OpenVersionNumberPullRequest(context);
+                return false;
+            }
+
+            throw new Exception("Current version differs, but is older than most recent known version?");
         }
-        if (currentVersion.TimeUpdated < mostRecentKnownVersion.TimeUpdated) throw new Exception("Current version is older than most recent known version?");
+        if (currentVersion.TimeUpdated != mostRecentKnownVersion.TimeUpdated) 
+            context.Log.Warning($"TimeUpdated for most recent known version is inaccurate - Should be {currentVersion.TimeUpdated}");
 
         var packagesExist = await Task.WhenAll(
             context.GameMetadata.NuGetPackageNames.Select(
