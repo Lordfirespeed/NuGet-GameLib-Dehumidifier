@@ -1,5 +1,4 @@
 {
-  "$schema": "../../assets/game-metadata.schema.json#",
   "steam": {
     "appId": 892970,
     "gameDistDepots": [
@@ -14,6 +13,13 @@
         "isDefault": false
       }
     ]
+  },
+  "processSettings": {
+    "excludeAssemblies": [
+      "netstandard.dll"
+    ],
+    "assembliesToPublicise": [],
+    "isIL2Cpp": false
   },
   "nuget": {
     "name": "Valheim.GameLibs.Steam",
@@ -38,12 +44,6 @@
         ]
       }
     ]
-  },
-  "processSettings": {
-    "excludeAssemblies": [
-      "netstandard.dll"
-    ],
-    "assembliesToPublicise": []
   },
   "gameVersions": []
 }
