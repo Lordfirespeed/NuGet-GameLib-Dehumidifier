@@ -1,14 +1,19 @@
 using System;
 using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Build.Schema;
 using Cake.Common;
 using Cake.Common.IO;
+using Cake.Common.Tools.Command;
 using Cake.Core;
 using Cake.Core.Diagnostics;
 using Cake.Core.IO;
 using Cake.Frosting;
+using Cake.Git;
 using Json.Schema;
 using Json.Schema.Serialization;
 
@@ -42,6 +47,14 @@ public class BuildContext : FrostingContext
         SteamUsername = context.Argument<string>("steam-username", "");
         
         RootDirectory = context.Environment.WorkingDirectory.GetParent();
+    }
+
+    public GitCommit InferredGitCommit(string message)
+    {
+        var name  = this.GitConfigGet<string>(RootDirectory, "user.name");
+        var email = this.GitConfigGet<string>(RootDirectory, "user.email");
+
+        return this.GitCommit(RootDirectory, name, email, message);
     }
 }
 
@@ -102,11 +115,103 @@ public sealed class PrepareTask : AsyncFrostingTask<BuildContext>
 
 [TaskName("CheckPackageUpToDate")]
 [IsDependentOn(typeof(FetchSteamAppInfoTask))]
-public sealed class CheckPackageUpToDateTask : FrostingTask<BuildContext>
+public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
 {
-    public override void Run(BuildContext context)
+    private static HttpClient NuGetClient = new()
+    {
+        BaseAddress = new Uri("https://api.nuget.org/v3"),
+    };
+    
+    private async Task<bool> NuGetPackageUpToDate(BuildContext context)
     {
         var mostRecentKnownVersion = context.GameMetadata.GameVersions.Latest();
+        if (mostRecentKnownVersion == null) return false;
+        
+        var currentVersion = context.GameAppInfo.Branches["public"];
+        if (currentVersion.TimeUpdated > mostRecentKnownVersion.TimeUpdated)
+        {
+            await OpenVersionNumberPullRequest(context);
+            return false;
+        }
+        if (currentVersion.TimeUpdated < mostRecentKnownVersion.TimeUpdated) throw new Exception("Current version is older than most recent known version?");
+
+        var packagesExist = await Task.WhenAll(
+            context.GameMetadata.NuGetPackageNames.Select(
+                packageName => NuGetPackageVersionExists(packageName, mostRecentKnownVersion.GameVersion)
+            )
+        );
+
+        return packagesExist.All(x => x);
+    }
+
+    private async Task<bool> NuGetPackageVersionExists(string id, string version)
+    {
+        var result = await NuGetClient.GetAsync($"registration5-semver1/{id.ToLower()}/{version}.json");
+        if (result.StatusCode.Equals(HttpStatusCode.NotFound)) return false;
+        if (!result.IsSuccessStatusCode) throw new Exception("Failed to check whether NuGet package version exists.");
+        return true;
+    }
+
+    private async Task OpenVersionNumberPullRequest(BuildContext context)
+    {
+        var publicBranchInfo = context.GameAppInfo.Branches["public"];
+        if (publicBranchInfo == null) throw new Exception("Current public branch info not found.");
+
+        var newVersionEntry = new GameVersionEntry()
+        {
+            BuildId = publicBranchInfo.BuildId,
+            TimeUpdated = publicBranchInfo.TimeUpdated,
+            GameVersion = "",
+            Depots = context.GameMetadata.Steam.DistributionDepots.Select(depotPair => depotPair.Value.DepotId)
+                .Select(depotId => context.GameAppInfo.Depots[depotId])
+                .Select(depot => new SteamGameDepotVersion {
+                    DepotId = depot.DepotId,
+                    ManifestId = depot.Manifests["public"].ManifestId,
+                })
+                .ToDictionary(depotVersion => depotVersion.DepotId),
+        };
+        
+        context.GameMetadata.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
+        
+        context.Log.Information("Serializing modified game metadata ...");
+        await using FileStream gameDataStream = File.OpenWrite(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
+        await JsonSerializer.SerializeAsync(gameDataStream, context.GameMetadata);
+
+        var branchName = $"{context.GameDirectory.GetDirectoryName()}-build-{publicBranchInfo.BuildId}";
+        context.GitCreateBranch(context.RootDirectory, branchName, true);
+        context.GitAdd(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
+        context.InferredGitCommit($"add game version entry for {context.GameDirectory.GetDirectoryName()} build {publicBranchInfo.BuildId}");
+        context.Command(
+            new CommandSettings
+            {
+                ToolName = "git",
+                ToolExecutableNames = new []{ "git", "git.exe" },
+            },
+            new ProcessArgumentBuilder()
+                .Append("push")
+                .Append("--set-upstream")
+                .Append("origin")
+                .Append(branchName)
+        );
+
+        context.Command(
+            new CommandSettings
+            {
+                ToolName = "gh",
+                ToolExecutableNames = new[] { "gh", "gh.exe" },
+            },
+            new ProcessArgumentBuilder()
+                .Append("pr")
+                .Append("create")
+                .AppendSwitch("--title", $"Version entry - {context.GameAppInfo.Name} Build {publicBranchInfo.BuildId}")
+                .AppendSwitch("--body", "Contains partially patched `metadata.json` for the new version. Game version number must be populated before merging.")
+                .AppendSwitch("--head", branchName)
+        );
+    }
+
+    public override async Task RunAsync(BuildContext context)
+    {
+        context.NuGetPackageUpToDate = await NuGetPackageUpToDate(context);
     }
 }
 
