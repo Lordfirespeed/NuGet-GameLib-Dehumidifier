@@ -168,7 +168,7 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
         var publicBranchInfo = context.GameAppInfo.Branches["public"];
         if (publicBranchInfo == null) throw new Exception("Current public branch info not found.");
 
-        var newVersionEntry = new GameVersionEntry()
+        var newVersionEntry = new GameVersionEntry
         {
             BuildId = publicBranchInfo.BuildId,
             TimeUpdated = publicBranchInfo.TimeUpdated,
