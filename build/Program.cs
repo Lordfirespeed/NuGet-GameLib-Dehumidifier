@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Build.Schema;
 using Cake.Common;
@@ -185,7 +186,13 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
         
         context.Log.Information("Serializing modified game metadata ...");
         await using FileStream gameDataStream = File.OpenWrite(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
-        await JsonSerializer.SerializeAsync(gameDataStream, context.GameMetadata);
+        await JsonSerializer.SerializeAsync(
+            gameDataStream, 
+            context.GameMetadata, 
+            new JsonSerializerOptions {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+            }
+        );
 
         var branchName = $"{context.GameDirectory.GetDirectoryName()}-build-{publicBranchInfo.BuildId}";
         context.GitCreateBranch(context.RootDirectory, branchName, true);
