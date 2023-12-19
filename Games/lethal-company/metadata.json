@@ -89,7 +89,7 @@
     },
     {
       "buildId": 12922815,
-      "timeUpdated": 1702209853,
+      "timeUpdated": 1702209855,
       "gameVersion": "45.0.2",
       "depots": [
         {
@@ -101,7 +101,8 @@
   ],
   "processSettings": {
     "excludeAssemblies": [
-      "Mono.Security.dll"
+      "Mono.Security.dll",
+      "netstandard.dll"
     ],
     "assembliesToPublicise": [
       "Assembly-CSharp.dll",
