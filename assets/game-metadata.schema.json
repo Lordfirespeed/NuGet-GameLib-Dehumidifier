@@ -29,6 +29,12 @@
                 "title": "Distribution Name",
                 "description": "Discriminator string that will become part of the NuGet package name for this depot.",
                 "type": "string"
+              },
+              "isDefault": {
+                "title": "Is Default Distribution",
+                "description": "Whether this is the default distribution of the game.",
+                "type": "boolean",
+                "default": false
               }
             },
             "required": ["depotId", "distributionName"]
