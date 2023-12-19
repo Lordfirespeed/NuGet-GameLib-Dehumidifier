@@ -125,7 +125,11 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
     private async Task<bool> NuGetPackageUpToDate(BuildContext context)
     {
         var mostRecentKnownVersion = context.GameMetadata.GameVersions.Latest();
-        if (mostRecentKnownVersion == null) return false;
+        if (mostRecentKnownVersion == null)
+        {
+            await OpenVersionNumberPullRequest(context);
+            return false;
+        }
         
         var currentVersion = context.GameAppInfo.Branches["public"];
         if (currentVersion.BuildId != mostRecentKnownVersion.BuildId)
