@@ -194,7 +194,8 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
                 WriteIndented = true,
             }
         );
-
+        
+        context.Log.Information("Opening pull request ...");
         var branchName = $"{context.GameDirectory.GetDirectoryName()}-build-{publicBranchInfo.BuildId}";
         context.GitCreateBranch(context.RootDirectory, branchName, true);
         context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("metadata.json"));
