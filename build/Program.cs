@@ -223,7 +223,13 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
                 .Append("pr")
                 .Append("create")
                 .AppendSwitch("--title", $"Version entry - {context.GameAppInfo.Name} Build {publicBranchInfo.BuildId}")
-                .AppendSwitch("--body", "Contains partially patched `metadata.json` for the new version. Game version number must be populated before merging.")
+                .AppendSwitch(
+                    "--body", 
+                    $"Contains partially patched `metadata.json` for the new version.\n" + 
+                    $"Game version number must be populated before merging.\n" + 
+                    $"Game version number can likely be inferred from " + 
+                    $"[Patchnotes for {context.GameAppInfo.Name} - SteamDB](https://steamdb.info/app/{context.GameMetadata.Steam.AppId}/patchnotes/)"
+                )
                 .AppendSwitch("--head", branchName)
         );
     }
