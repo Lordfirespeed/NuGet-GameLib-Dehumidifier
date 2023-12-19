@@ -18,7 +18,7 @@ public class GameMetadata
 	[JsonPropertyName("processSettings")]
 	public ProcessSettingsGameMetadata ProcessSettings { get; set; }
 	[JsonPropertyName("nuget")]
-	public NuGetGameMetadata Nuget { get; set; }
+	public NuGetGameMetadata NuGet { get; set; }
 	[JsonPropertyName("gameVersions")]
 	[JsonConverter(typeof(GameVersionMapJsonConverter))]
 	public GameVersionMap GameVersions { get; set; }
