@@ -22,7 +22,7 @@ public class GameMetadata
 	[JsonPropertyName("gameVersions")]
 	[JsonConverter(typeof(GameVersionMapJsonConverter))]
 	public GameVersionMap GameVersions { get; set; }
-
+	
 	public IEnumerable<string> NuGetPackageNames => Steam.DistributionDepots.Select(pair => pair.Value)
 		.Select(distribution => $"{NuGet.Name}{distribution.PackageSuffix}");
 }
@@ -124,7 +124,7 @@ public class SteamGameDistributionDepot
 	public string DistributionName { get; set; }
 	[JsonPropertyName("isDefault")]
 	public bool IsDefault { get; set; }
-	
+	[JsonIgnore]
 	public string PackageSuffix {
 		get {
 			if (IsDefault) return "";
