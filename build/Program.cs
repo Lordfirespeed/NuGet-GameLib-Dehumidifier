@@ -197,7 +197,7 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
 
         var branchName = $"{context.GameDirectory.GetDirectoryName()}-build-{publicBranchInfo.BuildId}";
         context.GitCreateBranch(context.RootDirectory, branchName, true);
-        context.GitAdd(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
+        context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("metadata.json"));
         context.InferredGitCommit($"add game version entry for {context.GameDirectory.GetDirectoryName()} build {publicBranchInfo.BuildId}");
         context.Command(
             new CommandSettings
