@@ -1,0 +1,49 @@
+{
+  "$schema": "../../assets/game-metadata.schema.json#",
+  "steam": {
+    "appId": 892970,
+    "gameDistDepots": [
+      {
+        "depotId": 892972,
+        "distributionName": "windows",
+        "isDefault": true
+      },
+      {
+        "depotId": 892971,
+        "distributionName": "linux",
+        "isDefault": false
+      }
+    ]
+  },
+  "nuget": {
+    "name": "Valheim.GameLibs.Steam",
+    "description": "Stripped and publicised game libraries for modding Valheim.",
+    "frameworkTargets": [
+      {
+        "tfm": "net462",
+        "dependencies": [
+          {
+            "name": "UnityEngine.Modules",
+            "version": "2022.3.9"
+          }
+        ]
+      },
+      {
+        "tfm": "netstandard2.0",
+        "dependencies": [
+          {
+            "name": "UnityEngine.Modules",
+            "version": "2022.3.9"
+          }
+        ]
+      }
+    ]
+  },
+  "processSettings": {
+    "excludeAssemblies": [
+      "netstandard.dll"
+    ],
+    "assembliesToPublicise": []
+  },
+  "gameVersions": []
+}
