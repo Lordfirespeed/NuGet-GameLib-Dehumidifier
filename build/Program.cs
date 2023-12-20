@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Build.Schema;
+using Build.util;
 using Cake.Common;
 using Cake.Common.IO;
 using Cake.Common.Tools.Command;
@@ -167,7 +168,25 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
     {
         var publicBranchInfo = context.GameAppInfo.Branches["public"];
         if (publicBranchInfo == null) throw new Exception("Current public branch info not found.");
+        
+        var branchName = $"{context.GameDirectory.GetDirectoryName()}-build-{publicBranchInfo.BuildId}";
+        await context.ProcessAsync(
+            new CommandSettings
+            {
+                ToolName = "git",
+                ToolExecutableNames = new []{ "git", "git.exe" },
+            },
+            new ProcessArgumentBuilder()
+                .Append("fetch")
+                .Append("origin")
+        );
+        var branches = context.GitBranches(context.RootDirectory);
+        if (branches.Any(branch => branch.FriendlyName == $"origin/{branchName}"))
+        {
+            throw new Exception("Version entry branch already exists on 'origin', assuming pull request is already open.");
+        }
 
+        context.Log.Information("Adding new (partial) version entry to game metadata ...");
         var newVersionEntry = new GameVersionEntry
         {
             BuildId = publicBranchInfo.BuildId,
