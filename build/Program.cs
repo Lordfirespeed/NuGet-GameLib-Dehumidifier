@@ -254,6 +254,8 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
                 )
                 .AppendSwitch("--head", branchName)
         );
+
+        throw new Exception("Version number for new build is unknown. Opened pull request to resolve.");
     }
 
     public override async Task RunAsync(BuildContext context)
