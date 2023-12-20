@@ -192,6 +192,7 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
             },
             new ProcessArgumentBuilder()
                 .Append("fetch")
+                .Append("--prune")
                 .Append("origin")
         );
         var branches = context.GitBranches(context.RootDirectory);
@@ -221,7 +222,7 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
         context.Log.Information("Opening version entry pull request ...");
         context.GitCreateBranch(context.RootDirectory, branchName, true);
         context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("metadata.json"));
-        context.InferredGitCommit($"add game version entry for {context.GameDirectory.GetDirectoryName()} build {publicBranchInfo.BuildId}");
+        context.InferredGitCommit($"add game version entry for {context.GameAppInfo.Name} build {publicBranchInfo.BuildId}");
         context.Command(
             new CommandSettings
             {
@@ -244,13 +245,13 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
             new ProcessArgumentBuilder()
                 .Append("pr")
                 .Append("create")
-                .AppendSwitch("--title", $"Version entry - {context.GameAppInfo.Name} Build {publicBranchInfo.BuildId}")
+                .AppendSwitch("--title", $"\"[{context.GameDirectory.GetDirectoryName()}] Version entry - Build {publicBranchInfo.BuildId}\"")
                 .AppendSwitch(
                     "--body", 
-                    $"Contains partially patched `metadata.json` for the new version.\n" + 
+                    $"\"Contains partially patched `metadata.json` for {context.GameAppInfo.Name} build {publicBranchInfo.BuildId}.\n" + 
                     $"Game version number must be populated before merging.\n" + 
                     $"Game version number can likely be inferred from " + 
-                    $"[Patchnotes for {context.GameAppInfo.Name} - SteamDB](https://steamdb.info/app/{context.GameMetadata.Steam.AppId}/patchnotes/)"
+                    $"[Patchnotes for {context.GameAppInfo.Name} - SteamDB](https://steamdb.info/app/{context.GameMetadata.Steam.AppId}/patchnotes/)\""
                 )
                 .AppendSwitch("--head", branchName)
         );
