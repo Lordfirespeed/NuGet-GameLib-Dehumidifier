@@ -214,7 +214,6 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
                 })
                 .ToDictionary(depotVersion => depotVersion.DepotId),
         };
-        
         context.GameMetadata.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
 
         await SerializeGameMetadata(context);
