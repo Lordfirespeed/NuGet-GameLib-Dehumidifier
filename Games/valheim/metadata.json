@@ -30,16 +30,16 @@
         "dependencies": [
           {
             "name": "UnityEngine.Modules",
-            "version": "2022.3.9"
+            "version": "2022.3.12"
           }
         ]
       },
       {
-        "tfm": "netstandard2.0",
+        "tfm": "netstandard2.1",
         "dependencies": [
           {
             "name": "UnityEngine.Modules",
-            "version": "2022.3.9"
+            "version": "2022.3.12"
           }
         ]
       }
