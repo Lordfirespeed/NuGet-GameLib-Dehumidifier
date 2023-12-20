@@ -164,6 +164,20 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
         return true;
     }
 
+    private async Task SerializeGameMetadata(BuildContext context)
+    {
+        context.Log.Information("Serializing modified game metadata ...");
+        await using FileStream gameDataStream = File.OpenWrite(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
+        await JsonSerializer.SerializeAsync(
+            gameDataStream, 
+            context.GameMetadata, 
+            new JsonSerializerOptions {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
+            }
+        );
+    }
+
     private async Task OpenVersionNumberPullRequest(BuildContext context)
     {
         var publicBranchInfo = context.GameAppInfo.Branches["public"];
@@ -202,17 +216,8 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
         };
         
         context.GameMetadata.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
-        
-        context.Log.Information("Serializing modified game metadata ...");
-        await using FileStream gameDataStream = File.OpenWrite(context.GameDirectory.CombineWithFilePath("metadata.json").FullPath);
-        await JsonSerializer.SerializeAsync(
-            gameDataStream, 
-            context.GameMetadata, 
-            new JsonSerializerOptions {
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                WriteIndented = true,
-            }
-        );
+
+        await SerializeGameMetadata(context);
         
         context.Log.Information("Opening pull request ...");
         var branchName = $"{context.GameDirectory.GetDirectoryName()}-build-{publicBranchInfo.BuildId}";
