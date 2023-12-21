@@ -48,24 +48,17 @@ public class SteamDownloadDepotsTask : SteamCmdTaskBase
             throw new Exception("Couldn't find 'download complete' message in SteamCMD output.");
         var downloadedToPath = new FilePath(downloadCompleteMatch!.Groups[1].Value);
         
-        context.EnsureDirectoryExists(context.GameDirectory.Combine("steam"));
         Directory.CreateSymbolicLink(
             context.GameDirectory.Combine("steam").Combine($"depot_{depot.DepotId}").FullPath,
             downloadedToPath.FullPath
         );
     }
-
-    private async Task DownloadVersionDepots(BuildContext context, GameVersionEntry version)
-    {
-        
-    }
-
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override async Task RunAsync(BuildContext context)
     {
+        context.EnsureDirectoryExists(context.GameDirectory.Combine("steam"));
         await Task.WhenAll(
-            context.GameMetadata.GameVersions.Latest()!.Depots.Values.Select(
+            context.TargetVersion.Depots.Values.Select(
                 depot => DownloadAndSymlinkDepot(context, depot)
             )
         );

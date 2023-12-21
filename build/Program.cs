@@ -7,6 +7,7 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using Build.Schema;
 using Build.Tasks;
@@ -37,18 +38,20 @@ public static class Program
 public class BuildContext : FrostingContext
 {
     public string GameFolderName { get; }
+    public int? GameBuildId { get; }
     public string SteamUsername { get; }
 
     public DirectoryPath RootDirectory { get; }
     public DirectoryPath GameDirectory => RootDirectory.Combine("Games").Combine(GameFolderName);
+    public GameVersionEntry TargetVersion => GameMetadata.GameVersions[GameBuildId ?? throw new Exception("Build ID not provided.")];
 
     public Schema.GameMetadata GameMetadata { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
-    public GameVersionEntry[] OutdatedPackageVersions { get; set; }
 
     public BuildContext(ICakeContext context) : base(context)
     {
-        GameFolderName = context.Argument<string>("game", "");
+        GameFolderName = context.Argument<string>("game");
+        GameBuildId = context.Argument<int?>("build", null);
         SteamUsername = context.Argument<string>("steam-username", "");
         
         RootDirectory = context.Environment.WorkingDirectory.GetParent();
@@ -321,8 +324,6 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
 [TaskName("DownloadNuGetDependencies")]
 public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
-    
     public override void Run(BuildContext context)
     {
         
@@ -333,8 +334,6 @@ public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
 public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
-    
     public override void Run(BuildContext context)
     {
         
@@ -346,8 +345,6 @@ public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<Build
 [IsDependentOn(typeof(ListAssembliesFromNuGetDependenciesTask))]
 public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
-    
     public override void Run(BuildContext context)
     {
         
@@ -358,8 +355,6 @@ public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(FilterAssembliesTask))]
 public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
-    
     public override void Run(BuildContext context)
     {
         
@@ -370,8 +365,6 @@ public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(StripAndPubliciseAssembliesTask))]
 public sealed class MakePackageTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
-    
     public override void Run(BuildContext context)
     {
         
@@ -382,8 +375,6 @@ public sealed class MakePackageTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(MakePackageTask))]
 public sealed class PushNuGetTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
-    
     public override void Run(BuildContext context)
     {
         
