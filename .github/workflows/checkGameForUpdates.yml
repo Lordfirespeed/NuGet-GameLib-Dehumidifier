@@ -56,12 +56,7 @@ jobs:
     strategy:
       matrix:
         buildId: ${{ fromJson(needs.game-update-check.outputs.buildIds) }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Update GameLibs for ${{ inputs.game }} at build ${{ matrix.buildId }}
-        uses: ./.github/workflows/updateGameVersionPackage.yml
-        with:
-          game: ${{ inputs.game }}
-          buildId: ${{ matrix.buildId }}
+    uses: ./.github/workflows/updateGameVersionPackage.yml
+    with:
+      game: ${{ inputs.game }}
+      buildId: ${{ matrix.buildId }}
