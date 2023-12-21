@@ -28,7 +28,8 @@ public static class ProcessAliases
         CommandSettings settings,
         ProcessArgumentBuilder? arguments = null,
         bool captureOutput = false,
-        bool captureError = false
+        bool captureError = false,
+        string? sendToStdin = null 
     )
     {
         var resolvedToolPath = ResolveToolPath(context, settings);
@@ -41,7 +42,8 @@ public static class ProcessAliases
         {
             RedirectStandardOutput = captureOutput,
             RedirectStandardError = captureError,
-            UseShellExecute = true,
+            RedirectStandardInput = sendToStdin != null,
+            UseShellExecute = false,
         };
 
         using var process = new Process();
@@ -58,6 +60,12 @@ public static class ProcessAliases
         process.Start();
         if (captureOutput) process.BeginOutputReadLine();
         if (captureError) process.BeginErrorReadLine();
+
+        if (sendToStdin != null)
+        {
+            await process.StandardInput.WriteAsync(sendToStdin);
+            await process.StandardInput.FlushAsync();
+        }
 
         await process.WaitForExitAsync();
 
