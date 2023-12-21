@@ -58,8 +58,6 @@ public class FetchSteamAppInfoTask : SteamCmdTaskBase
         var appInfoLength = writtenAppInfo.Length;
         await appInfoWriter.DisposeAsync();
         if (!withinAppInfo) throw new Exception("Couldn't find app info in SteamCMD output.");
-        
-        Console.WriteLine(await new StreamReader(new MemoryStream(writtenAppInfo.GetBuffer())).ReadToEndAsync());
 
         var unreadAppInfo = new MemoryStream(writtenAppInfo.GetBuffer());
         unreadAppInfo.SetLength(appInfoLength);
