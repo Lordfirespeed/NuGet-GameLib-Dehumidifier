@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Numerics;
@@ -11,53 +10,11 @@ using Cake.Core.IO;
 using Cake.Frosting;
 using ValveKeyValue;
 
-namespace Build;
-
-public abstract class SteamCmdTask : AsyncFrostingTask<BuildContext>
-{
-    protected async Task<StreamReader> RawSteamCmdOutput(BuildContext context, ProcessArgumentBuilder argumentBuilder)
-    {
-        argumentBuilder
-            .PrependSwitchSecret("+login", context.SteamUsername)
-            .Append("+quit");
-        
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "steamcmd",
-            Arguments = argumentBuilder.Render(),
-            RedirectStandardOutput = true,
-            RedirectStandardInput = true,
-            UseShellExecute = false,
-        };
-
-        using var process = new Process();
-        process.StartInfo = startInfo;
-
-        var output = new MemoryStream();
-        var outputWriter = new StreamWriter(output);
-        outputWriter.AutoFlush = true;
-
-        process.OutputDataReceived += async (sender, args) =>
-        {
-            await outputWriter.WriteLineAsync(args.Data);
-        };
-        
-        process.Start();
-        await process.StandardInput.WriteAsync("\u0004");
-        process.BeginOutputReadLine();
-        
-        await process.WaitForExitAsync();
-        await process.StandardInput.DisposeAsync();
-        await outputWriter.DisposeAsync();
-        
-        if (process.ExitCode != 0) throw new Exception("SteamCMD returned exit code " + process.ExitCode + ".");
-        return new StreamReader(new MemoryStream(output.GetBuffer()));
-    }
-}
+namespace Build.Tasks;
 
 [TaskName("FetchSteamAppInfo")]
 [IsDependentOn(typeof(PrepareTask))]
-public class FetchSteamAppInfoTask : SteamCmdTask
+public class FetchSteamAppInfoTask : SteamCmdTaskBase
 {
     protected static readonly KVSerializer VdfSerializer = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
 
@@ -111,13 +68,15 @@ public class FetchSteamAppInfoTask : SteamCmdTask
     
     protected async Task<SteamAppInfo> SteamCmdAppInfo(BuildContext context, int appId)
     {
-        using var rawAppInfoStream = await RawSteamCmdOutput(
+        var (rawAppInfoStream, _) = await RawSteamCmd(
             context,
             new ProcessArgumentBuilder()
-                .AppendSwitch("+app_info_print", appId.ToString())
+                .AppendSwitch("+app_info_print", appId.ToString()),
+            captureOutput: true
         );
-
-        var appInfo = await ExtractAppInfo(rawAppInfoStream);
+        
+        using var rawAppInfoStreamManaged = rawAppInfoStream!;
+        var appInfo = await ExtractAppInfo(rawAppInfoStreamManaged);
 
         var kvAppInfo = VdfSerializer.Deserialize(appInfo);
         return SteamAppInfo.FromKv(kvAppInfo);
