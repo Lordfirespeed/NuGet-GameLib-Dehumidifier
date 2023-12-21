@@ -18,7 +18,7 @@ jobs:
     name: Check ${{ inputs.game }} for outdated package versions
     runs-on: ubuntu-latest
     outputs:
-      buildIds: ${{ steps.check-versions.outputs.buildIds }}
+      buildIds: ${{ steps.check-versions.outputs.outdated-version-buildIds }}
     steps: 
       - name: Checkout repository
         uses: actions/checkout@v4

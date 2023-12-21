@@ -272,7 +272,7 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
             )
         );
 
-        return new KeyValuePair<GameVersionEntry, bool>(versionEntry, packagesExistAtVersion.All(x => x));
+        return new KeyValuePair<GameVersionEntry, bool>(versionEntry, !packagesExistAtVersion.All(x => x));
     }
     
     private async Task<GameVersionEntry[]> GetOutdatedVersions(BuildContext context)
@@ -308,14 +308,14 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
         {
             using (var textWriter = new StreamWriter(githubOutputFile!, true, Encoding.UTF8))
             {
-                await textWriter.WriteLineAsync("versions<<EOF");
+                await textWriter.WriteLineAsync("outdated-version-buildIds<<EOF");
                 await textWriter.WriteLineAsync(outdatedBuildIdsJson);
                 await textWriter.WriteLineAsync("EOF");
             }
         }
         else
         {
-            Console.WriteLine($"::set-output name=summary-details::{outdatedBuildIdsJson}");
+            Console.WriteLine($"::set-output name=outdated-version-buildIds::{outdatedBuildIdsJson}");
         }
     }
 }
