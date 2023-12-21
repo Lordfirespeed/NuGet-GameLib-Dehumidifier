@@ -19,8 +19,8 @@ jobs:
         with:
           path: ./Games
           
-  update-all:
-    name: Run update task for all games 
+  dispatch-game-update-checks:
+    name: Dispatch game update checks
     runs-on: ubuntu-latest
     needs: list-games
     strategy: 
@@ -28,7 +28,7 @@ jobs:
         game: ${{ fromJson(needs.list-games.outputs.games) }}
     steps:
       - name: Update GameLibs
-        uses: ./.github/workflows/update.yml
+        uses: ./.github/workflows/checkGameForUpdates.yml
         with:
           game: ${{ matrix.game }}
       

@@ -1,0 +1,64 @@
+name: Update GameLibs
+
+on: 
+  workflow_dispatch: 
+    inputs:
+      game:
+        description: Name of game folder in `Games` directory 
+        required: true
+        type: string
+  workflow_call: 
+    inputs:
+      game:
+        required: true
+        type: string
+
+jobs:
+  game-update-check:
+    name: Check ${{ inputs.game }} for outdated package versions
+    runs-on: ubuntu-latest
+    outputs:
+      buildIds: ${{ steps.check-versions.outputs.buildIds }}
+    steps: 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: "8.0.x"
+        
+      - name: Setup SteamCMD 
+        uses: Lordfirespeed/setup-steamcmd@v2
+      
+      - name: Authenticate SteamCMD
+        uses: Lordfirespeed/auth-steamcmd@v1
+        with:
+          steam_config_vdf: ${{ secrets.steam_config_vdf }}
+          steam_username: ${{ secrets.steam_username }}
+          
+      - name: Configure Git
+        run: |
+          git config user.email "action@github.com"
+          git config user.name "GitHub Action"
+      
+      - name: Check versions up-to-date
+        id: check-versions
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./build.sh --target CheckPackageVersionsUpToDate --game ${{ inputs.game }} --steam-username ${{ secrets.steam_username }}
+  
+  dispatch-game-version-package-updates:
+    name: Dispatch package version updates for ${{ inputs.game }}
+    runs-on: ubuntu-latest
+    needs: game-update-check
+    strategy:
+      matrix:
+        buildId: ${{ fromJson(needs.game-update-check.outputs.buildIds) }}
+    steps:
+      - name: Update GameLibs for ${{ inputs.game }} at build ${{ matrix.buildId }}
+        uses: ./.github/workflows/updateGameVersionPackage.yml
+        with:
+          game: ${{ inputs.game }}
+          buildId: ${{ matrix.buildId }}

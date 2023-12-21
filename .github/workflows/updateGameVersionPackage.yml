@@ -1,4 +1,4 @@
-name: Update GameLibs
+name: Update GameLibs for Version
 
 on: 
   workflow_dispatch: 
@@ -7,15 +7,22 @@ on:
         description: Name of game folder in `Games` directory 
         required: true
         type: string
+      buildId:
+        description: Steam build ID 
+        required: true
+        type: number
   workflow_call: 
     inputs:
       game:
         required: true
         type: string
+      buildId:
+        required: true
+        type: number
 
 jobs:
-  update:
-    name: Update Game 
+  update-version:
+    name: Update GameLibs for Game at Version
     runs-on: ubuntu-latest
     steps: 
       - name: Checkout repository
@@ -34,17 +41,10 @@ jobs:
         with:
           steam_config_vdf: ${{ secrets.steam_config_vdf }}
           steam_username: ${{ secrets.steam_username }}
-          
-      - name: Configure Git
-        run: |
-          git config user.email "action@github.com"
-          git config user.name "GitHub Action"
       
       - name: Build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ./build.sh --game ${{ inputs.game }} --steam-username ${{ secrets.steam_username }}
+          ./build.sh --target something --game ${{ inputs.game }} --build ${{ inputs.buildId }} --steam-username ${{ secrets.steam_username }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
