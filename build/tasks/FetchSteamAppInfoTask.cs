@@ -68,7 +68,7 @@ public class FetchSteamAppInfoTask : SteamCmdTaskBase
     {
         var (rawAppInfoStream, _) = await RawSteamCmd(
             context,
-            new ProcessArgumentBuilder()
+            args => args
                 .AppendSwitch("+app_info_print", appId.ToString()),
             captureOutput: true
         );
