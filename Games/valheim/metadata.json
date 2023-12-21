@@ -45,5 +45,21 @@
       }
     ]
   },
-  "gameVersions": []
+  "gameVersions": [
+    {
+      "buildId": 12959248,
+      "timeUpdated": 1702543093,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 892972,
+          "manifestId": 1884802621298759865
+        },
+        {
+          "depotId": 892971,
+          "manifestId": 7697447462593569757
+        }
+      ]
+    }
+  ]
 }

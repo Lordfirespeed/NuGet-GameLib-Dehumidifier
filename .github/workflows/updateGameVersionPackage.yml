@@ -1,0 +1,54 @@
+name: Update GameLibs for Version
+
+on: 
+  workflow_dispatch: 
+    inputs:
+      game:
+        description: Name of game folder in `Games` directory 
+        required: true
+        type: string
+      buildId:
+        description: Steam build ID 
+        required: true
+        type: number
+  workflow_call: 
+    inputs:
+      game:
+        required: true
+        type: string
+      buildId:
+        required: true
+        type: number
+
+jobs:
+  update-version:
+    name: Update GameLibs for Game at Version
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: "8.0.x"
+        
+      - name: Setup SteamCMD 
+        uses: Lordfirespeed/setup-steamcmd@v2
+      
+      - name: Authenticate SteamCMD
+        uses: Lordfirespeed/auth-steamcmd@v1
+        with:
+          steam_config_vdf: ${{ secrets.steam_config_vdf }}
+          steam_username: ${{ secrets.steam_username }}
+      
+      - name: Build
+        run: |
+          ./build.sh --target something --game ${{ inputs.game }} --build ${{ inputs.buildId }} --steam-username ${{ secrets.steam_username }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: "dist/*.zip"
+        

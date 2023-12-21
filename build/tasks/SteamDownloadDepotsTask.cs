@@ -3,7 +3,7 @@ using Cake.Frosting;
 
 namespace Build.Tasks;
 
-[TaskName("DownloadDepot")]
+[TaskName("DownloadDepots")]
 [IsDependentOn(typeof(CheckPackageUpToDateTask))]
 public class SteamDownloadDepotTask : SteamCmdTaskBase
 {
@@ -11,6 +11,10 @@ public class SteamDownloadDepotTask : SteamCmdTaskBase
 
     public override async Task RunAsync(BuildContext context)
     {
-
+        this.
+        
+        this.RawSteamCmd(
+            
+        )
     }
 }

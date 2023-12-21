@@ -15,7 +15,7 @@ on:
 
 jobs:
   update:
-    name: Update Game 
+    name: Check Game for Outdated Package Versions
     runs-on: ubuntu-latest
     steps: 
       - name: Checkout repository
