@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Cake.Common.Tools.Command;
 using Cake.Core;
+using Cake.Core.Diagnostics;
 using Cake.Core.IO;
 
 namespace Build.util;
@@ -51,11 +52,21 @@ public static class ProcessAliases
 
         var output = new MemoryStream();
         await using var outputWriter = new StreamWriter(output, leaveOpen: captureOutput);
-        process.OutputDataReceived += async (sender, args) => { await outputWriter.WriteLineAsync(args.Data); };
+        // this only fires when a line break is hit. Todo: Consider workarounds
+        process.OutputDataReceived += async (sender, args) =>
+        {
+            context.Log.Information(args.Data);
+            await outputWriter.WriteLineAsync(args.Data);
+        };
 
         var error = new MemoryStream();
         await using var errorWriter = new StreamWriter(error, leaveOpen: captureError);
-        process.ErrorDataReceived += async (sender, args) => { await errorWriter.WriteLineAsync(args.Data); };
+        // this only fires when a line break is hit. As above.
+        process.ErrorDataReceived += async (sender, args) =>
+        {
+            context.Log.Error(args.Data);
+            await errorWriter.WriteLineAsync(args.Data);
+        };
         
         process.Start();
         if (captureOutput) process.BeginOutputReadLine();
