@@ -11,14 +11,20 @@ namespace Build.Tasks;
 
 public abstract class SteamCmdTaskBase : AsyncFrostingTask<BuildContext>
 {
+    public delegate ProcessArgumentBuilder BuildArguments(ProcessArgumentBuilder builder);
+    
     protected async Task<Tuple<StreamReader?, StreamReader?>> RawSteamCmd(
         BuildContext context, 
-        ProcessArgumentBuilder argumentBuilder,
+        BuildArguments buildArguments,
         bool captureOutput = false,
         bool captureError = false
-    ) {
+    )
+    {
+        var argumentBuilder = buildArguments(
+            new ProcessArgumentBuilder()
+                .PrependSwitchSecret("+login", context.SteamUsername)
+        );
         argumentBuilder
-            .PrependSwitchSecret("+login", context.SteamUsername)
             .Append("+quit");
 
         return await context.ProcessAsync(
