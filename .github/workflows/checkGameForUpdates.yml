@@ -54,6 +54,7 @@ jobs:
     strategy:
       matrix:
         buildId: ${{ fromJson(needs.game-update-check.outputs.buildIds) }}
+      fail-fast: false
     uses: ./.github/workflows/updateGameVersionPackage.yml
     with:
       game: ${{ inputs.game }}

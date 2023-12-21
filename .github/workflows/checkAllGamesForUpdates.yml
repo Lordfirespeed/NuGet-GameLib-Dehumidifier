@@ -24,6 +24,7 @@ jobs:
     strategy: 
       matrix:
         game: ${{ fromJson(needs.list-games.outputs.games) }}
+      fail-fast: false
     uses: ./.github/workflows/checkGameForUpdates.yml
     with:
       game: ${{ matrix.game }}
