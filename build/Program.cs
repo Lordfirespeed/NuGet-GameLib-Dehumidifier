@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -42,7 +44,7 @@ public class BuildContext : FrostingContext
 
     public Schema.GameMetadata GameMetadata { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
-    public bool NuGetPackageUpToDate { get; set; }
+    public GameVersionEntry[] OutdatedPackageVersions { get; set; }
 
     public BuildContext(ICakeContext context) : base(context)
     {
@@ -116,55 +118,10 @@ public sealed class PrepareTask : AsyncFrostingTask<BuildContext>
     }
 }
 
-[TaskName("CheckPackageUpToDate")]
+[TaskName("HandleUnknownSteamBuild")]
 [IsDependentOn(typeof(FetchSteamAppInfoTask))]
-public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
+public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext>
 {
-    private static HttpClient NuGetClient = new()
-    {
-        BaseAddress = new Uri("https://api.nuget.org/v3"),
-    };
-    
-    private async Task<bool> NuGetPackageUpToDate(BuildContext context)
-    {
-        var mostRecentKnownVersion = context.GameMetadata.GameVersions.Latest();
-        if (mostRecentKnownVersion == null)
-        {
-            await OpenVersionNumberPullRequest(context);
-            return false;
-        }
-        
-        var currentVersion = context.GameAppInfo.Branches["public"];
-        if (currentVersion.BuildId != mostRecentKnownVersion.BuildId)
-        {
-            if (currentVersion.TimeUpdated > mostRecentKnownVersion.TimeUpdated)
-            {
-                await OpenVersionNumberPullRequest(context);
-                return false;
-            }
-
-            throw new Exception("Current version differs, but is older than most recent known version?");
-        }
-        if (currentVersion.TimeUpdated != mostRecentKnownVersion.TimeUpdated) 
-            context.Log.Warning($"TimeUpdated for most recent known version is inaccurate - Should be {currentVersion.TimeUpdated}");
-
-        var packagesExist = await Task.WhenAll(
-            context.GameMetadata.NuGetPackageNames.Select(
-                packageName => NuGetPackageVersionExists(packageName, mostRecentKnownVersion.GameVersion)
-            )
-        );
-
-        return packagesExist.All(x => x);
-    }
-
-    private async Task<bool> NuGetPackageVersionExists(string id, string version)
-    {
-        var result = await NuGetClient.GetAsync($"registration5-semver1/{id.ToLower()}/{version}.json");
-        if (result.StatusCode.Equals(HttpStatusCode.NotFound)) return false;
-        if (!result.IsSuccessStatusCode) throw new Exception("Failed to check whether NuGet package version exists.");
-        return true;
-    }
-
     private async Task SerializeGameMetadata(BuildContext context)
     {
         context.Log.Information("Serializing modified game metadata ...");
@@ -217,8 +174,13 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
                 .ToDictionary(depotVersion => depotVersion.DepotId),
         };
         context.GameMetadata.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
-
+        
+        context.Log.Information("Serializing game metadata ...");
         await SerializeGameMetadata(context);
+        
+        // Remove the partial entry from the deserialized metadata so we can continue to assume the metadata adheres to its JSON schema
+        context.Log.Information("Removing new version entry from game metadata ...");
+        context.GameMetadata.GameVersions.Remove(newVersionEntry.BuildId);
         
         context.Log.Information("Opening version entry pull request ...");
         context.GitCreateBranch(context.RootDirectory, branchName, true);
@@ -257,19 +219,111 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
                 .AppendSwitch("--head", branchName)
         );
 
-        throw new Exception("Version number for new build is unknown. Opened pull request to resolve.");
+        context.Log.Warning("Version number for new build is unknown. Opened pull request to resolve.");
     }
-
+    
     public override async Task RunAsync(BuildContext context)
     {
-        context.NuGetPackageUpToDate = await NuGetPackageUpToDate(context);
+        var mostRecentKnownVersion = context.GameMetadata.GameVersions.Latest();
+        if (mostRecentKnownVersion == null)
+        {
+            // If there are no known versions, open a pull request.
+            await OpenVersionNumberPullRequest(context);
+            return;
+        }
+        
+        var currentVersion = context.GameAppInfo.Branches["public"];
+        // If the current version is the latest known version, check TimeUpdated matches and do nothing.
+        if (currentVersion.BuildId == mostRecentKnownVersion.BuildId)
+        {
+            if (currentVersion.TimeUpdated != mostRecentKnownVersion.TimeUpdated) 
+                context.Log.Warning($"TimeUpdated for most recent known version is inaccurate - Should be {currentVersion.TimeUpdated}");
+            
+            return;
+        }
+        
+        // If the current version is known, but not the latest known version, warn and do nothing.
+        if (context.GameMetadata.GameVersions.Values.Any(version => version.BuildId == currentVersion.BuildId))
+        {
+            context.Log.Warning("Current version is known, but is not latest?");
+            return;
+        }
+        
+        // If the current version is unknown, open a pull request.
+        await OpenVersionNumberPullRequest(context);
+    }
+}
+
+[TaskName("CheckPackageVersionsUpToDate")]
+[IsDependentOn(typeof(FetchSteamAppInfoTask))]
+[IsDependentOn(typeof(HandleUnknownSteamBuildTask))]
+public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildContext>
+{
+    private static HttpClient NuGetClient = new()
+    {
+        BaseAddress = new Uri("https://api.nuget.org/v3"),
+    };
+
+    private async Task<KeyValuePair<GameVersionEntry, bool>> CheckVersionOutdated(BuildContext context, GameVersionEntry versionEntry)
+    {
+        var packagesExistAtVersion = await Task.WhenAll(
+            context.GameMetadata.NuGetPackageNames.Select(
+                packageName => NuGetPackageVersionExists(packageName, versionEntry.GameVersion)
+            )
+        );
+
+        return new KeyValuePair<GameVersionEntry, bool>(versionEntry, packagesExistAtVersion.All(x => x));
+    }
+    
+    private async Task<GameVersionEntry[]> GetOutdatedVersions(BuildContext context)
+    {
+        var outdatedStatusPerVersion = await Task.WhenAll(
+            context.GameMetadata.GameVersions.Values.Select(
+                version => CheckVersionOutdated(context, version)
+            )
+        );
+
+        var outdatedPackageVersions = outdatedStatusPerVersion
+            .Where(pair => pair.Value)
+            .Select(pair => pair.Key);
+
+        return outdatedPackageVersions.ToArray();
+    }
+
+    private async Task<bool> NuGetPackageVersionExists(string id, string version)
+    {
+        var result = await NuGetClient.GetAsync($"registration5-semver1/{id.ToLower()}/{version}.json");
+        if (result.StatusCode.Equals(HttpStatusCode.NotFound)) return false;
+        if (!result.IsSuccessStatusCode) throw new Exception("Failed to check whether NuGet package version exists.");
+        return true;
+    }
+    
+    public override async Task RunAsync(BuildContext context)
+    {
+        var outdatedBuildIds = (await GetOutdatedVersions(context)).Select(version => version.BuildId);
+        var outdatedBuildIdsJson = JsonSerializer.Serialize(outdatedBuildIds);
+        
+        var githubOutputFile = Environment.GetEnvironmentVariable("GITHUB_OUTPUT", EnvironmentVariableTarget.Process);
+        if (!string.IsNullOrWhiteSpace(githubOutputFile))
+        {
+            using (var textWriter = new StreamWriter(githubOutputFile!, true, Encoding.UTF8))
+            {
+                await textWriter.WriteLineAsync("versions<<EOF");
+                await textWriter.WriteLineAsync(outdatedBuildIdsJson);
+                await textWriter.WriteLineAsync("EOF");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"::set-output name=summary-details::{outdatedBuildIdsJson}");
+        }
     }
 }
 
 [TaskName("DownloadNuGetDependencies")]
 public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override void Run(BuildContext context)
     {
@@ -281,7 +335,7 @@ public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
 public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override void Run(BuildContext context)
     {
@@ -290,11 +344,11 @@ public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<Build
 }
 
 [TaskName("FilterAssemblies")]
-[IsDependentOn(typeof(SteamDownloadDepotTask))]
+[IsDependentOn(typeof(SteamDownloadDepotsTask))]
 [IsDependentOn(typeof(ListAssembliesFromNuGetDependenciesTask))]
 public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override void Run(BuildContext context)
     {
@@ -306,7 +360,7 @@ public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(FilterAssembliesTask))]
 public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override void Run(BuildContext context)
     {
@@ -318,7 +372,7 @@ public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(StripAndPubliciseAssembliesTask))]
 public sealed class MakePackageTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override void Run(BuildContext context)
     {
@@ -330,7 +384,7 @@ public sealed class MakePackageTask : FrostingTask<BuildContext>
 [IsDependentOn(typeof(MakePackageTask))]
 public sealed class PushNuGetTask : FrostingTask<BuildContext>
 {
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
+    public override bool ShouldRun(BuildContext context) => context.OutdatedPackageVersions.Any();
     
     public override void Run(BuildContext context)
     {
