@@ -13,7 +13,7 @@ using Cake.Frosting;
 namespace Build.Tasks;
 
 [TaskName("DownloadDepots")]
-[IsDependentOn(typeof(CheckPackageVersionsUpToDateTask))]
+[IsDependentOn(typeof(FetchSteamAppInfoTask))]
 public class SteamDownloadDepotsTask : SteamCmdTaskBase
 {
     private static Regex DownloadCompleteRegex = new(
