@@ -306,12 +306,10 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
         var githubOutputFile = Environment.GetEnvironmentVariable("GITHUB_OUTPUT", EnvironmentVariableTarget.Process);
         if (!string.IsNullOrWhiteSpace(githubOutputFile))
         {
-            using (var textWriter = new StreamWriter(githubOutputFile!, true, Encoding.UTF8))
-            {
-                await textWriter.WriteLineAsync("outdated-version-buildIds<<EOF");
-                await textWriter.WriteLineAsync(outdatedBuildIdsJson);
-                await textWriter.WriteLineAsync("EOF");
-            }
+            await using var textWriter = new StreamWriter(githubOutputFile!, true, Encoding.UTF8);
+            await textWriter.WriteLineAsync("outdated-version-buildIds<<EOF");
+            await textWriter.WriteLineAsync(outdatedBuildIdsJson);
+            await textWriter.WriteLineAsync("EOF");
         }
         else
         {
