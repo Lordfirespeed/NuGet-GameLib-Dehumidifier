@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Build.Schema;
+using Build.Tasks;
 using Build.util;
 using Cake.Common;
 using Cake.Common.IO;
@@ -265,18 +266,6 @@ public sealed class CheckPackageUpToDateTask : AsyncFrostingTask<BuildContext>
     }
 }
 
-[TaskName("DownloadDepot")]
-[IsDependentOn(typeof(CheckPackageUpToDateTask))]
-public sealed class DownloadAssembliesTask : FrostingTask<BuildContext>
-{
-    public override bool ShouldRun(BuildContext context) => !context.NuGetPackageUpToDate;
-
-    public override void Run(BuildContext context)
-    {
-        
-    }
-}
-
 [TaskName("DownloadNuGetDependencies")]
 public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
 {
@@ -301,7 +290,7 @@ public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<Build
 }
 
 [TaskName("FilterAssemblies")]
-[IsDependentOn(typeof(DownloadAssembliesTask))]
+[IsDependentOn(typeof(SteamDownloadDepotTask))]
 [IsDependentOn(typeof(ListAssembliesFromNuGetDependenciesTask))]
 public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
 {
