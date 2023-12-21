@@ -22,7 +22,7 @@ on:
 
 jobs:
   update-version:
-    name: Update GameLibs for Game at Version
+    name: Update GameLibs package for ${{ inputs.game }} build ${{ inputs.buildId }}
     runs-on: ubuntu-latest
     steps: 
       - name: Checkout repository
