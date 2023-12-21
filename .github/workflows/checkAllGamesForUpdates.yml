@@ -27,6 +27,9 @@ jobs:
       matrix:
         game: ${{ fromJson(needs.list-games.outputs.games) }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
       - name: Update GameLibs
         uses: ./.github/workflows/checkGameForUpdates.yml
         with:
