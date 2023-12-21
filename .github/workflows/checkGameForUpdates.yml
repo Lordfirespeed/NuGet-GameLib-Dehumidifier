@@ -58,3 +58,4 @@ jobs:
     with:
       game: ${{ inputs.game }}
       buildId: ${{ matrix.buildId }}
+    secrets: inherit

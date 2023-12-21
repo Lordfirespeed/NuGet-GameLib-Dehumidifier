@@ -27,4 +27,5 @@ jobs:
     uses: ./.github/workflows/checkGameForUpdates.yml
     with:
       game: ${{ matrix.game }}
+    secrets: inherit
       
