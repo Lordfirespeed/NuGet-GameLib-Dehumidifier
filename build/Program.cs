@@ -175,6 +175,14 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext
                     ManifestId = depot.Manifests["public"].ManifestId,
                 })
                 .ToDictionary(depotVersion => depotVersion.DepotId),
+            FrameworkTargets = context.GameMetadata.GameVersions.Latest()?.FrameworkTargets ?? new List<FrameworkTarget>
+            {
+                new()
+                {
+                    TargetFrameworkMoniker = "netstandard2.0",
+                    NuGetDependencies = new List<NuGetDependency>()
+                },
+            },
         };
         context.GameMetadata.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
         
