@@ -31,6 +31,8 @@
 
 ## 'Games' folder
 !/Games/
+/Games/*/packages/
+/Games/*/steam/
 
 ## Solution
 !/NuGet-GameLib-Dehumidifier.sln
