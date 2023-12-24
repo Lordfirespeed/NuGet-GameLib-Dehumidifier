@@ -34,6 +34,7 @@ public static class ProcessAliases
     )
     {
         var resolvedToolPath = ResolveToolPath(context, settings);
+        context.Log.Debug($"Resolved {settings.ToolName} to {resolvedToolPath}");
         if (resolvedToolPath == null) throw new Exception($"Couldn't resolve path for '{settings.ToolName}'");
 
         var startInfo = new ProcessStartInfo(
@@ -46,7 +47,8 @@ public static class ProcessAliases
             RedirectStandardInput = sendToStdin != null,
             UseShellExecute = false,
         };
-
+        
+        context.Log.Information($"{settings.ToolName ?? resolvedToolPath.GetFilenameWithoutExtension()} {arguments?.RenderSafe() ?? ""}");
         using var process = new Process();
         process.StartInfo = startInfo;
 
