@@ -38,7 +38,7 @@ public static class ProcessAliases
 
         var startInfo = new ProcessStartInfo(
             resolvedToolPath.FullPath,
-            arguments?.Select(argument => argument.Render()) ?? Array.Empty<string>()
+            arguments?.Render() ?? ""
         )
         {
             RedirectStandardOutput = captureOutput,
