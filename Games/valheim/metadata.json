@@ -26,16 +26,7 @@
     "description": "Stripped and publicised game libraries for modding Valheim.",
     "frameworkTargets": [
       {
-        "tfm": "net462",
-        "dependencies": [
-          {
-            "name": "UnityEngine.Modules",
-            "version": "2022.3.12"
-          }
-        ]
-      },
-      {
-        "tfm": "netstandard2.1",
+        "tfm": "netstandard2.0",
         "dependencies": [
           {
             "name": "UnityEngine.Modules",
