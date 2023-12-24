@@ -32,6 +32,11 @@ jobs:
         uses: actions/setup-dotnet@v3
         with:
           dotnet-version: "8.0.x"
+      
+      - name: setup NuGet CLI
+        uses: NuGet/setup-nuget@v1
+        with:
+          nuget-version: '6.x'
         
       - name: Setup SteamCMD 
         uses: Lordfirespeed/setup-steamcmd@v2
