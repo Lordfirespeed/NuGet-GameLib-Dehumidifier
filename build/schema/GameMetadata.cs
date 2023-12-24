@@ -54,8 +54,6 @@ public class NuGetGameMetadata
 	public string Description { get; set; }
 	[JsonPropertyName("authors")]
 	public List<string> Authors { get; set; }
-	[JsonPropertyName("frameworkTargets")]
-	public List<FrameworkTarget> FrameworkTargets { get; set; }
 }
 
 public class GameVersionMap : Dictionary<int, GameVersionEntry>
@@ -74,6 +72,8 @@ public class GameVersionEntry: IComparable<GameVersionEntry>, IEquatable<GameVer
 	[JsonPropertyName("depots")] 
 	[JsonConverter(typeof(DepotVersionMapJsonConverter))]
 	public Dictionary<int, SteamGameDepotVersion> Depots { get; set; }
+	[JsonPropertyName("frameworkTargets")]
+	public List<FrameworkTarget> FrameworkTargets { get; set; }
 
 	public bool Equals(GameVersionEntry? other)
 	{
