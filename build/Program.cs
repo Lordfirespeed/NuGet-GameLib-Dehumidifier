@@ -322,11 +322,33 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
 }
 
 [TaskName("DownloadNuGetDependencies")]
-public sealed class DownloadNuGetDependenciesTask : FrostingTask<BuildContext>
+[IsDependentOn(typeof(PrepareTask))]
+public sealed class DownloadNuGetDependenciesTask : AsyncFrostingTask<BuildContext>
 {
-    public override void Run(BuildContext context)
+    private async Task DownloadNuGetPackage(BuildContext context, NuGetDependency package)
     {
-        
+        await context.ProcessAsync(
+            new CommandSettings
+            {
+                ToolName = "NuGet",
+                ToolExecutableNames = new[] { "nuget", "nuget.exe" },
+            },
+            new ProcessArgumentBuilder()
+                .Append("install")
+                .Append(package.Name)
+                .AppendSwitch("-Version", package.Version)
+                .AppendSwitch("-OutputDirectory", context.GameDirectory.Combine("packages").FullPath)
+        );
+    }
+    
+    public override async Task RunAsync(BuildContext context)
+    {
+        context.EnsureDirectoryExists(context.GameDirectory.Combine("packages"));
+        await Task.WhenAll(
+            context.GameMetadata.NuGet.FrameworkTargets
+                .SelectMany(target => target.NuGetDependencies)
+                .Select(dependency => DownloadNuGetPackage(context, dependency))
+        );
     }
 }
 
