@@ -353,7 +353,7 @@ public sealed class DownloadNuGetDependenciesTask : AsyncFrostingTask<BuildConte
     {
         context.EnsureDirectoryExists(context.GameDirectory.Combine("packages"));
         await Task.WhenAll(
-            context.GameMetadata.NuGet.FrameworkTargets
+            context.TargetVersion.FrameworkTargets
                 .SelectMany(target => target.NuGetDependencies)
                 .Select(dependency => DownloadNuGetPackage(context, dependency))
         );
