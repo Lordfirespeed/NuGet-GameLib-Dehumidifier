@@ -149,7 +149,9 @@
   "processSettings": {
     "excludeAssemblies": [
       "Mono.Security.dll",
-      "netstandard.dll"
+      "netstandard.dll",
+      "System.*.dll",
+      "mscorlib.dll"
     ],
     "assembliesToPublicise": [
       "Assembly-CSharp.dll",
