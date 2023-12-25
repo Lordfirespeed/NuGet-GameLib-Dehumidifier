@@ -24,6 +24,13 @@ public class SteamDownloadDepotsTask : SteamCmdTaskBase
 
     private async Task DownloadAndSymlinkDepot(BuildContext context, SteamGameDepotVersion depot)
     {
+        var destinationPath = context.GameDirectory.Combine("steam").Combine($"depot_{depot.DepotId}");
+        if (context.DirectoryExists(destinationPath))
+        {
+            context.Log.Information($"Depot {depot.DepotId} is already downloaded, skipping download");
+            return;
+        }
+        
         var (output, _) = await RawSteamCmd(
             context,
             args => args
@@ -49,7 +56,7 @@ public class SteamDownloadDepotsTask : SteamCmdTaskBase
         var downloadedToPath = new FilePath(downloadCompleteMatch!.Groups[1].Value);
         
         Directory.CreateSymbolicLink(
-            context.GameDirectory.Combine("steam").Combine($"depot_{depot.DepotId}").FullPath,
+            destinationPath.FullPath,
             downloadedToPath.FullPath
         );
     }
