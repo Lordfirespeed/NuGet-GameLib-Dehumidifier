@@ -7,7 +7,6 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Threading;
 using System.Threading.Tasks;
 using Build.Schema;
 using Build.Tasks;
@@ -410,7 +409,6 @@ public sealed class PushNuGetTask : FrostingTask<BuildContext>
         
     }
 }
-
 
 [TaskName("Default")]
 public class DefaultTask : FrostingTask { }
