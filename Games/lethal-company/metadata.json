@@ -12,7 +12,7 @@
   },
   "nuget": {
     "name": "LethalCompany.GameLibs.Steam",
-    "description": "Stripped and publicised game libraries for modding Lethal Company.",
+    "description": "Stripped and publicised game libraries for modding Lethal Company."
   },
   "gameVersions": [
     {
