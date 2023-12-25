@@ -4,10 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using BepInEx.AssemblyPublicizer;
 using Build.Schema;
 using Build.Tasks;
 using Build.util;
@@ -21,6 +24,9 @@ using Cake.Frosting;
 using Cake.Git;
 using Json.Schema;
 using Json.Schema.Serialization;
+using Microsoft.Extensions.FileSystemGlobbing;
+using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
+using Path = System.IO.Path;
 
 namespace Build;
 
@@ -46,6 +52,8 @@ public class BuildContext : FrostingContext
 
     public Schema.GameMetadata GameMetadata { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
+    public Dictionary<string, PathAssemblyResolver> FrameworkTargetAssemblyResolvers { get; set; }
+    public Dictionary<string, Task> AssemblyProcessingTasks { get; set; }
 
     public BuildContext(ICakeContext context) : base(context)
     {
@@ -359,24 +367,284 @@ public sealed class DownloadNuGetDependenciesTask : AsyncFrostingTask<BuildConte
     }
 }
 
-[TaskName("ListAssembliesFromNuGetDependencies")]
+[TaskName("CacheDependencyAssemblyResolvers")]
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
-public sealed class ListAssembliesFromNuGetDependenciesTask : FrostingTask<BuildContext>
+public sealed class CacheDependencyAssemblyResolversTask : FrostingTask<BuildContext>
 {
+    private delegate bool TargetFrameworkCanConsume(string dependencyTfm);
+    
+    private PathAssemblyResolver AssemblyResolverForTfm(BuildContext context, string tfm)
+    {
+        var packageDirs = Directory.GetDirectories(context.GameDirectory.Combine("packages").FullPath);
+        var sourceDirs = packageDirs.SelectMany(packageDir => new[] { "lib", "ref", "build" }.Select(subDir => Path.Join(packageDir, subDir)))
+            .Where(Directory.Exists)
+            .ToArray();
+        var untargetedAssemblies = sourceDirs.SelectMany(
+            sourceDir => Directory.GetFiles(sourceDir, "*.dll")
+        );
+        var canConsume = ConsumptionChecker(tfm);
+        var targetedSourceDirs = sourceDirs.SelectMany(Directory.GetDirectories)
+            .Where(targetedSourceDir => canConsume(Path.GetFileName(targetedSourceDir)));
+        var targetedAssemblies = targetedSourceDirs.SelectMany(
+            sourceDir => Directory.GetFiles(sourceDir, "*.dll")
+        );
+        
+        return new PathAssemblyResolver(targetedAssemblies.Concat(untargetedAssemblies));
+    }
+
+    private TargetFrameworkCanConsume ConsumptionChecker(string tfm)
+    {
+        var netCoreMatch = NetCoreTfmRegex.Match(tfm);
+        if (netCoreMatch.Success)
+        {
+            var netCoreVersion = new Version(netCoreMatch.Groups[1].Value);
+            return dependencyTfm => NetCoreCanConsume(netCoreVersion, dependencyTfm);
+        }
+
+        var netFrameworkMatch = NetFrameworkTfmRegex.Match(tfm);
+        if (netFrameworkMatch.Success)
+        {
+            var netFrameworkVersion = int.Parse(netFrameworkMatch.Groups[1].Value);
+            return dependencyTfm => NetFrameworkCanConsume(netFrameworkVersion, dependencyTfm);
+        }
+
+        var netStandardMatch = NetStandardTfmRegex.Match(tfm);
+        if (netStandardMatch.Success)
+        {
+            var netStandardVersion = new Version(netStandardMatch.Groups[1].Value);
+            return dependencyTfm => NetStandardCanConsume(netStandardVersion, dependencyTfm);
+        }
+
+        throw new ArgumentException("Unsupported target framework moniker; cannot determine consumable framework versions.");
+    }
+
+    private static readonly Regex NetCoreTfmRegex = new(@"^net([5678]\.0)$", RegexOptions.Compiled);
+    private static readonly Dictionary<Version, Version> NetCoreNetStandardVersionSupport = new()
+    {
+        [new Version(8, 0)] = new Version(2, 1),
+        [new Version(7, 0)] = new Version(2, 1),
+        [new Version(6, 0)] = new Version(2, 1),
+        [new Version(5, 0)] = new Version(2, 1),
+        [new Version(3, 1)] = new Version(2, 1),
+        [new Version(3, 0)] = new Version(2, 1),
+        
+        [new Version(2, 2)] = new Version(2, 0),
+        [new Version(2, 1)] = new Version(2, 0),
+        [new Version(2, 0)] = new Version(2, 0),
+        
+        [new Version(1, 1)] = new Version(1, 6),
+        [new Version(1, 0)] = new Version(1, 6),
+    };
+    private bool NetCoreCanConsume(Version version, string dependencyTfm)
+    {
+        var netCoreMatch = NetCoreTfmRegex.Match(dependencyTfm);
+        if (netCoreMatch.Success)
+        {
+            return version >= new Version(netCoreMatch.Groups[1].Value);
+        }
+
+        if (!NetCoreNetStandardVersionSupport.TryGetValue(version, out var supportedNetStandardVersion))
+            return false;
+
+        return NetStandardCanConsume(supportedNetStandardVersion, dependencyTfm);
+    }
+
+    private static readonly Regex NetFrameworkTfmRegex = new(@"^net(\d{2,3})$", RegexOptions.Compiled);
+    private static readonly int[] NetFrameworkVersionOrder = [11, 20, 35, 40, 403, 45, 451, 452, 46, 461, 462, 47, 471, 472, 48, 481];
+    private static readonly Dictionary<int, Version> NetFrameworkNetStandardVersionSupport = new()
+    {
+        [481] = new Version(2, 0),
+        [48] = new Version(2, 0),
+        [472] = new Version(2, 0),
+        [471] = new Version(2, 0),
+        [47] = new Version(2, 0),
+        [462] = new Version(2, 0),
+        [461] = new Version(2, 0),
+        [46] = new Version(1, 3),
+        [452] = new Version(1, 2),
+        [451] = new Version(1, 2),
+        [45] = new Version(1, 1),
+    };
+    private bool NetFrameworkCanConsume(int version, string dependencyTfm)
+    {
+        var netFrameworkMatch = NetFrameworkTfmRegex.Match(dependencyTfm);
+        if (netFrameworkMatch.Success)
+        {
+            return Array.IndexOf(NetFrameworkVersionOrder, version) >= 
+                   Array.IndexOf(NetFrameworkVersionOrder, int.Parse(netFrameworkMatch.Groups[1].Value));
+        }
+
+        if (!NetFrameworkNetStandardVersionSupport.TryGetValue(version, out var supportedNetStandardVersion))
+            return false;
+
+        return NetStandardCanConsume(supportedNetStandardVersion, dependencyTfm);
+    }
+
+    private static readonly Regex NetStandardTfmRegex = new(@"netstandard([12]\.\d)", RegexOptions.Compiled);
+    private bool NetStandardCanConsume(Version version, string dependencyTfm)
+    {
+        var netStandardMatch = NetStandardTfmRegex.Match(dependencyTfm);
+        if (!netStandardMatch.Success) return false;
+
+        return version >= new Version(netStandardMatch.Groups[1].Value);
+    }
+    
     public override void Run(BuildContext context)
     {
-        
+        context.FrameworkTargetAssemblyResolvers = new Dictionary<string, PathAssemblyResolver>(
+            context.TargetVersion.FrameworkTargets.Select(target => target.TargetFrameworkMoniker)
+                .Select(
+                    tfm => new KeyValuePair<string, PathAssemblyResolver>(tfm, AssemblyResolverForTfm(context, tfm))
+                )
+        );
     }
 }
 
 [TaskName("FilterAssemblies")]
 [IsDependentOn(typeof(SteamDownloadDepotsTask))]
-[IsDependentOn(typeof(ListAssembliesFromNuGetDependenciesTask))]
-public sealed class FilterAssembliesTask : FrostingTask<BuildContext>
+[IsDependentOn(typeof(CacheDependencyAssemblyResolversTask))]
+public sealed class FilterAssembliesTask : AsyncFrostingTask<BuildContext>
 {
-    public override void Run(BuildContext context)
+    private Matcher AssemblyMatcher { get; } = new();
+    private Matcher PublicizeMatcher { get; } = new();
+    private Dictionary<int, FilePatternMatch[]> DepotAssemblies { get; } = new();
+    private readonly object processingTasksLock = new();
+
+    private AssemblyPublicizerOptions StripAndPublicise { get; }= new()
     {
+        Target = PublicizeTarget.All,
+        Strip = true,
+        IncludeOriginalAttributesAttribute = true,
+    };
         
+    private AssemblyPublicizerOptions StripOnly { get; } = new()
+    {
+        Target = PublicizeTarget.None,
+        Strip = true,
+        IncludeOriginalAttributesAttribute = true,
+    }; 
+
+    private DirectoryPath DataDirectory(BuildContext context, int depotId)
+    {
+        var depotDirectory = context.GameDirectory.Combine("steam").Combine($"depot_{depotId}");
+
+        var windowsExe = Directory.EnumerateFiles(depotDirectory.FullPath, "*.exe")
+            .FirstOrDefault(filePath => !filePath.StartsWith("UnityCrashHandler"));
+        if (windowsExe != null)
+        {
+            return depotDirectory.Combine($"{Path.GetFileNameWithoutExtension(windowsExe)}_Data");
+        }
+        
+        var linuxExe = Directory
+            .EnumerateFiles(depotDirectory.FullPath, "*.x86_64")
+            .FirstOrDefault(filePath => !filePath.StartsWith("UnityCrashHandler"));
+        if (linuxExe != null)
+        {
+            return depotDirectory.Combine($"{Path.GetFileNameWithoutExtension(linuxExe)}_Data");
+        }
+        
+        var macOsApp = Directory.EnumerateFiles(depotDirectory.FullPath, "*.app").FirstOrDefault();
+        if (macOsApp != null)
+        {
+            return new DirectoryPath(macOsApp)
+                .Combine("Content")
+                .Combine("Resources")
+                .Combine("Data");
+        }
+
+        throw new ArgumentException("Unsupported distribution platform - couldn't find executable/app bundle.");
+    }
+
+    private DirectoryPath ManagedDirectory(BuildContext context, int depotId) =>
+        DataDirectory(context, depotId).Combine("Managed");
+    
+    private DirectoryPath DepotTargetNupkgRefsDirectory(BuildContext context, SteamGameDistributionDepot depot, string tfm)
+        => context.GameDirectory
+            .Combine("nupkgs")
+            .Combine($"{context.GameFolderName}_{depot.DepotId}")
+            .Combine("refs")
+            .Combine(tfm);
+    
+    private async Task ProcessAndCopyAssemblyForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, string tfm, FilePatternMatch fileMatch)
+    {
+        var resolver = context.FrameworkTargetAssemblyResolvers[tfm];
+        var loadContext = new MetadataLoadContext(resolver, "mscorlib");
+
+        if (resolver.Resolve(loadContext, new AssemblyName(Path.GetFileNameWithoutExtension(fileMatch.Path))) != null) return;
+        
+        var fileName = Path.GetFileName(fileMatch.Path);
+
+        bool processingHasStarted;
+        Task? processingCompleted;
+        TaskCompletionSource? processingCompletedSource = null;
+        
+        lock (processingTasksLock)
+        {
+            processingHasStarted = context.AssemblyProcessingTasks.TryGetValue(fileMatch.Path, out processingCompleted);
+
+            if (!processingHasStarted)
+            {
+                processingCompletedSource = new TaskCompletionSource();
+                processingCompleted = processingCompletedSource.Task;
+                context.AssemblyProcessingTasks[fileMatch.Path] = processingCompleted;
+            }
+        }
+
+        if (!processingHasStarted)
+        {
+            var shouldPublicise = PublicizeMatcher.Match(fileName).HasMatches;
+            var options = shouldPublicise ? StripAndPublicise : StripOnly;
+            context.Log.Information($"Stripping {fileName}...");
+            AssemblyPublicizer.Publicize(fileMatch.Path, fileMatch.Path, options);
+            processingCompletedSource!.SetResult();
+        }
+
+        await (processingCompleted ?? Task.CompletedTask);
+
+        await using FileStream source = File.Open(fileMatch.Path, FileMode.Open);
+        await using FileStream destination = File.Create(DepotTargetNupkgRefsDirectory(context, depot, tfm).CombineWithFilePath(fileName).FullPath);
+        await source.CopyToAsync(destination);
+    }
+
+    private async Task CopyAssembliesForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, string tfm)
+    {
+        Task ProcessAndCopyAssembly(FilePatternMatch path) => ProcessAndCopyAssemblyForDepotTarget(context, depot, tfm, path);
+        context.EnsureDirectoryExists(DepotTargetNupkgRefsDirectory(context, depot, tfm).FullPath);
+
+        await Task.WhenAll(
+            DepotAssemblies[depot.DepotId]
+                .Select(ProcessAndCopyAssembly)
+        );
+    }
+    
+    private async Task CopyAssembliesForDepot(BuildContext context, SteamGameDistributionDepot depot)
+    {
+        DepotAssemblies[depot.DepotId] = AssemblyMatcher.Execute(
+            new DirectoryInfoWrapper(new DirectoryInfo(ManagedDirectory(context, depot.DepotId).FullPath))
+        ).Files.ToArray();
+        
+        Task CopyAssembliesForTarget(string tfm) => CopyAssembliesForDepotTarget(context, depot, tfm);
+        await Task.WhenAll(
+            context.TargetVersion.FrameworkTargets
+                .Select(target => target.TargetFrameworkMoniker)
+                .Select(CopyAssembliesForTarget)
+        );
+    }
+    
+    public override async Task RunAsync(BuildContext context)
+    {
+        context.AssemblyProcessingTasks = new();
+        
+        AssemblyMatcher.AddInclude("*.dll");
+        AssemblyMatcher.AddExcludePatterns(context.GameMetadata.ProcessSettings.ExcludeAssemblies);
+        
+        PublicizeMatcher.AddIncludePatterns(context.GameMetadata.ProcessSettings.AssembliesToPublicise);
+        
+        await Task.WhenAll(
+            context.GameMetadata.Steam.DistributionDepots.Values.Select(
+                depot => CopyAssembliesForDepot(context, depot)
+            )
+        );
     }
 }
 
@@ -390,6 +658,7 @@ public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
     }
 }
 
+// https://stackoverflow.com/questions/26682202/creating-a-nuget-package-programmatically
 [TaskName("MakePackage")]
 [IsDependentOn(typeof(StripAndPubliciseAssembliesTask))]
 public sealed class MakePackageTask : FrostingTask<BuildContext>
