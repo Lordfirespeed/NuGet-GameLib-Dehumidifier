@@ -595,7 +595,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         {
             var shouldPublicise = PublicizeMatcher.Match(fileMatch.Path).HasMatches;
             var options = shouldPublicise ? StripAndPublicise : StripOnly;
-            context.Log.Information($"Stripping {fileName}...");
+            context.Log.Information($"Stripping {(shouldPublicise ? "and publicising " : "")}{fileName}...");
             AssemblyPublicizer.Publicize(filePath.FullPath, filePath.FullPath, options);
             processingCompletedSource!.SetResult();
         }
