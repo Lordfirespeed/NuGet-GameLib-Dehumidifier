@@ -31,8 +31,8 @@
 
 ## 'Games' folder
 !/Games/
-/Games/*/packages/
-/Games/*/steam/
+/Games/*/*
+!/Games/*/metadata.json
 
 ## Solution
 !/NuGet-GameLib-Dehumidifier.sln
