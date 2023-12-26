@@ -10,6 +10,18 @@
       }
     ]
   },
+  "processSettings": {
+    "excludeAssemblies": [
+      "Mono.Security.dll",
+      "netstandard.dll",
+      "System*.dll",
+      "mscorlib.dll"
+    ],
+    "assembliesToPublicise": [
+      "Assembly-CSharp.dll",
+      "Assembly-CSharp-firstpass.dll"
+    ]
+  },
   "nuget": {
     "name": "LethalCompany.GameLibs.Steam",
     "description": "Stripped and publicised game libraries for modding Lethal Company."
@@ -145,17 +157,5 @@
         }
       ]
     }
-  ],
-  "processSettings": {
-    "excludeAssemblies": [
-      "Mono.Security.dll",
-      "netstandard.dll",
-      "System.*.dll",
-      "mscorlib.dll"
-    ],
-    "assembliesToPublicise": [
-      "Assembly-CSharp.dll",
-      "Assembly-CSharp-firstpass.dll"
-    ]
-  }
+  ]
 }
