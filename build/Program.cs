@@ -647,21 +647,11 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
             )
         );
     }
-}
-
-[TaskName("StripAndPubliciseAssemblies")]
-[IsDependentOn(typeof(ProcessAssembliesTask))]
-public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
-{
-    public override void Run(BuildContext context)
-    {
-        
-    }
-}
+} 
 
 // https://stackoverflow.com/questions/26682202/creating-a-nuget-package-programmatically
 [TaskName("MakePackage")]
-[IsDependentOn(typeof(StripAndPubliciseAssembliesTask))]
+[IsDependentOn(typeof(ProcessAssembliesTask))]
 public sealed class MakePackageTask : FrostingTask<BuildContext>
 {
     public override void Run(BuildContext context)
