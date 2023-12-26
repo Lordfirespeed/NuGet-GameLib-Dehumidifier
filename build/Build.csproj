@@ -9,7 +9,6 @@
   
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="8.0.0" />
-    <PackageReference Include="System.Reflection.MetadataLoadContext" Version="8.0.0" />
     <PackageReference Include="ValveKeyValue" Version="0.9.*" />
     <PackageReference Include="JsonSchema.Net" Version="5.4.1" />
     <PackageReference Include="Cake.Frosting" Version="4.0.0" />
