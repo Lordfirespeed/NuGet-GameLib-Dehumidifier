@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -52,7 +51,7 @@ public class BuildContext : FrostingContext
 
     public Schema.GameMetadata GameMetadata { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
-    public Dictionary<string, PathAssemblyResolver> FrameworkTargetAssemblyResolvers { get; set; }
+    public Dictionary<string, HashSet<string>> FrameworkTargetDependencyAssemblyNames { get; set; }
     public Dictionary<string, Task> AssemblyProcessingTasks { get; set; }
 
     public BuildContext(ICakeContext context) : base(context)
@@ -367,13 +366,13 @@ public sealed class DownloadNuGetDependenciesTask : AsyncFrostingTask<BuildConte
     }
 }
 
-[TaskName("CacheDependencyAssemblyResolvers")]
+[TaskName("CacheDependencyAssemblyNames")]
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
-public sealed class CacheDependencyAssemblyResolversTask : FrostingTask<BuildContext>
+public sealed class CacheDependencyAssemblyNamesTask : FrostingTask<BuildContext>
 {
     private delegate bool TargetFrameworkCanConsume(string dependencyTfm);
     
-    private PathAssemblyResolver AssemblyResolverForTfm(BuildContext context, string tfm)
+    private HashSet<string> DependencyAssemblyNamesForTfm(BuildContext context, string tfm)
     {
         var packageDirs = Directory.GetDirectories(context.GameDirectory.Combine("packages").FullPath);
         var sourceDirs = packageDirs.SelectMany(packageDir => new[] { "lib", "ref", "build" }.Select(subDir => Path.Join(packageDir, subDir)))
@@ -388,8 +387,11 @@ public sealed class CacheDependencyAssemblyResolversTask : FrostingTask<BuildCon
         var targetedAssemblies = targetedSourceDirs.SelectMany(
             sourceDir => Directory.GetFiles(sourceDir, "*.dll")
         );
-        
-        return new PathAssemblyResolver(targetedAssemblies.Concat(untargetedAssemblies));
+
+        return targetedAssemblies.Concat(untargetedAssemblies)
+            .Select(Path.GetFileName)
+            .Where(fileName => !String.IsNullOrWhiteSpace(fileName))
+            .ToHashSet()!;
     }
 
     private TargetFrameworkCanConsume ConsumptionChecker(string tfm)
@@ -491,19 +493,19 @@ public sealed class CacheDependencyAssemblyResolversTask : FrostingTask<BuildCon
     
     public override void Run(BuildContext context)
     {
-        context.FrameworkTargetAssemblyResolvers = new Dictionary<string, PathAssemblyResolver>(
+        context.FrameworkTargetDependencyAssemblyNames = new Dictionary<string, HashSet<string>>(
             context.TargetVersion.FrameworkTargets.Select(target => target.TargetFrameworkMoniker)
                 .Select(
-                    tfm => new KeyValuePair<string, PathAssemblyResolver>(tfm, AssemblyResolverForTfm(context, tfm))
+                    tfm => new KeyValuePair<string, HashSet<string>>(tfm, DependencyAssemblyNamesForTfm(context, tfm))
                 )
         );
     }
 }
 
-[TaskName("FilterAssemblies")]
+[TaskName("ProcessAssemblies")]
 [IsDependentOn(typeof(SteamDownloadDepotsTask))]
-[IsDependentOn(typeof(CacheDependencyAssemblyResolversTask))]
-public sealed class FilterAssembliesTask : AsyncFrostingTask<BuildContext>
+[IsDependentOn(typeof(CacheDependencyAssemblyNamesTask))]
+public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
 {
     private Matcher AssemblyMatcher { get; } = new();
     private Matcher PublicizeMatcher { get; } = new();
@@ -561,19 +563,18 @@ public sealed class FilterAssembliesTask : AsyncFrostingTask<BuildContext>
     private DirectoryPath DepotTargetNupkgRefsDirectory(BuildContext context, SteamGameDistributionDepot depot, string tfm)
         => context.GameDirectory
             .Combine("nupkgs")
-            .Combine($"{context.GameFolderName}_{depot.DepotId}")
+            .Combine($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}")
             .Combine("refs")
             .Combine(tfm);
     
     private async Task ProcessAndCopyAssemblyForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, string tfm, FilePatternMatch fileMatch)
     {
-        var resolver = context.FrameworkTargetAssemblyResolvers[tfm];
-        var loadContext = new MetadataLoadContext(resolver, "mscorlib");
-
-        if (resolver.Resolve(loadContext, new AssemblyName(Path.GetFileNameWithoutExtension(fileMatch.Path))) != null) return;
+        var filePath = ManagedDirectory(context, depot.DepotId).CombineWithFilePath(fileMatch.Path);
+        var fileName = filePath.GetFilename().FullPath;
         
-        var fileName = Path.GetFileName(fileMatch.Path);
-
+        var dependencyAssemblyNames = context.FrameworkTargetDependencyAssemblyNames[tfm];
+        if (dependencyAssemblyNames.Contains(fileName)) return;
+        
         bool processingHasStarted;
         Task? processingCompleted;
         TaskCompletionSource? processingCompletedSource = null;
@@ -592,16 +593,16 @@ public sealed class FilterAssembliesTask : AsyncFrostingTask<BuildContext>
 
         if (!processingHasStarted)
         {
-            var shouldPublicise = PublicizeMatcher.Match(fileName).HasMatches;
+            var shouldPublicise = PublicizeMatcher.Match(fileMatch.Path).HasMatches;
             var options = shouldPublicise ? StripAndPublicise : StripOnly;
             context.Log.Information($"Stripping {fileName}...");
-            AssemblyPublicizer.Publicize(fileMatch.Path, fileMatch.Path, options);
+            AssemblyPublicizer.Publicize(filePath.FullPath, filePath.FullPath, options);
             processingCompletedSource!.SetResult();
         }
 
         await (processingCompleted ?? Task.CompletedTask);
 
-        await using FileStream source = File.Open(fileMatch.Path, FileMode.Open);
+        await using FileStream source = File.Open(filePath.FullPath, FileMode.Open);
         await using FileStream destination = File.Create(DepotTargetNupkgRefsDirectory(context, depot, tfm).CombineWithFilePath(fileName).FullPath);
         await source.CopyToAsync(destination);
     }
@@ -610,7 +611,7 @@ public sealed class FilterAssembliesTask : AsyncFrostingTask<BuildContext>
     {
         Task ProcessAndCopyAssembly(FilePatternMatch path) => ProcessAndCopyAssemblyForDepotTarget(context, depot, tfm, path);
         context.EnsureDirectoryExists(DepotTargetNupkgRefsDirectory(context, depot, tfm).FullPath);
-
+        
         await Task.WhenAll(
             DepotAssemblies[depot.DepotId]
                 .Select(ProcessAndCopyAssembly)
@@ -649,7 +650,7 @@ public sealed class FilterAssembliesTask : AsyncFrostingTask<BuildContext>
 }
 
 [TaskName("StripAndPubliciseAssemblies")]
-[IsDependentOn(typeof(FilterAssembliesTask))]
+[IsDependentOn(typeof(ProcessAssembliesTask))]
 public sealed class StripAndPubliciseAssembliesTask : FrostingTask<BuildContext>
 {
     public override void Run(BuildContext context)
