@@ -4,12 +4,12 @@
     "gameDistDepots": [
       {
         "depotId": 892972,
-        "distributionName": "windows",
+        "distributionName": "Windows",
         "isDefault": true
       },
       {
         "depotId": 892971,
-        "distributionName": "linux",
+        "distributionName": "Linux",
         "isDefault": false
       }
     ]
