@@ -566,7 +566,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         => context.GameDirectory
             .Combine("nupkgs")
             .Combine($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}")
-            .Combine("refs")
+            .Combine("ref")
             .Combine(tfm);
     
     private async Task ProcessAndCopyAssemblyForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, string tfm, FilePatternMatch fileMatch)
@@ -708,7 +708,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
             Files = [
                 new()
                 {
-                    Source = "refs/**",
+                    Source = "ref/**",
                 }
             ],
         };
