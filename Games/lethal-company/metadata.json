@@ -12,7 +12,7 @@
   },
   "processSettings": {
     "excludeAssemblies": [
-      "Mono.Security.dll",
+      "Mono*.dll",
       "netstandard.dll",
       "System*.dll",
       "mscorlib.dll"
