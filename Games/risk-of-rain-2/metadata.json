@@ -1,0 +1,29 @@
+{
+  "steam": {
+    "appId": 632360,
+    "gameDistDepots": [
+      {
+        "depotId": 632361,
+        "distributionName": "Windows",
+        "isDefault": true
+      }
+    ]
+  },
+  "processSettings": {
+    "excludeAssemblies": [
+      "Mono*.dll",
+      "netstandard.dll",
+      "System*.dll",
+      "mscorlib.dll"
+    ],
+    "assembliesToPublicise": [
+      "Assembly-CSharp.dll",
+      "RoR2.dll"
+    ]
+  },
+  "nuget": {
+    "name": "RiskOfRain2.GameLibs.Steam",
+    "description": "Stripped and publicised game libraries for modding Risk of Rain 2."
+  },
+  "gameVersions": []
+}
