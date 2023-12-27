@@ -315,7 +315,7 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
 
     private async Task<bool> NuGetPackageVersionExists(string id, string version)
     {
-        var result = await NuGetClient.GetAsync($"registration5-gz-semver2/{id.ToLower()}/{version}-alpha.1.json");
+        var result = await NuGetClient.GetAsync($"v3/registration5-gz-semver2/{id.ToLower()}/{version}-alpha.1.json");
         if (result.StatusCode.Equals(HttpStatusCode.NotFound)) return false;
         if (!result.IsSuccessStatusCode) throw new Exception("Failed to check whether NuGet package version exists.");
         return true;
