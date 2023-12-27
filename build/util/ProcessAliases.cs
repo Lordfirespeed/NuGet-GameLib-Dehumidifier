@@ -1,8 +1,13 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Packaging;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
+using Cake.Common;
 using Cake.Common.Tools.Command;
 using Cake.Core;
 using Cake.Core.Diagnostics;
@@ -12,6 +17,8 @@ namespace Build.util;
 
 public static class ProcessAliases
 {
+    private static SemaphoreSlim processRunLock = new SemaphoreSlim(1, 1);
+    
     private static FilePath? ResolveToolPath(ICakeContext context, CommandSettings settings)
     {
         var presetToolPath = settings.ToolPath;
@@ -31,8 +38,33 @@ public static class ProcessAliases
         bool captureOutput = false,
         bool captureError = false,
         string? sendToStdin = null 
-    )
-    {
+    ) {
+        await processRunLock.WaitAsync();
+        try
+        {
+            return await UnsafeProcessAsync(
+                context,
+                settings,
+                arguments,
+                captureOutput,
+                captureError,
+                sendToStdin
+            );
+        }
+        finally
+        {
+            processRunLock.Release();
+        }
+    }
+
+    private static async Task<Tuple<StreamReader?, StreamReader?>> UnsafeProcessAsync(
+        this ICakeContext context,
+        CommandSettings settings,
+        ProcessArgumentBuilder? arguments = null,
+        bool captureOutput = false,
+        bool captureError = false,
+        string? sendToStdin = null 
+    ) {
         var resolvedToolPath = ResolveToolPath(context, settings);
         context.Log.Debug($"Resolved {settings.ToolName} to {resolvedToolPath}");
         if (resolvedToolPath == null) throw new Exception($"Couldn't resolve path for '{settings.ToolName}'");
@@ -46,6 +78,8 @@ public static class ProcessAliases
             RedirectStandardError = captureError,
             RedirectStandardInput = sendToStdin != null,
             UseShellExecute = false,
+            WorkingDirectory = context.Environment.WorkingDirectory.FullPath,
+            CreateNoWindow = true,
         };
         
         context.Log.Information($"{settings.ToolName ?? resolvedToolPath.GetFilenameWithoutExtension()} {arguments?.RenderSafe() ?? ""}");
@@ -71,6 +105,7 @@ public static class ProcessAliases
         };
         
         process.Start();
+        
         if (captureOutput) process.BeginOutputReadLine();
         if (captureError) process.BeginErrorReadLine();
 
