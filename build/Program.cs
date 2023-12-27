@@ -545,7 +545,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         var depotDirectory = context.GameDirectory.Combine("steam").Combine($"depot_{depotId}");
 
         var windowsExe = Directory.EnumerateFiles(depotDirectory.FullPath, "*.exe")
-            .FirstOrDefault(filePath => !filePath.StartsWith("UnityCrashHandler"));
+            .FirstOrDefault(filePath => !Path.GetFileName(filePath).StartsWith("UnityCrashHandler"));
         if (windowsExe != null)
         {
             return depotDirectory.Combine($"{Path.GetFileNameWithoutExtension(windowsExe)}_Data");
@@ -553,7 +553,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         
         var linuxExe = Directory
             .EnumerateFiles(depotDirectory.FullPath, "*.x86_64")
-            .FirstOrDefault(filePath => !filePath.StartsWith("UnityCrashHandler"));
+            .FirstOrDefault(filePath => !Path.GetFileName(filePath).StartsWith("UnityCrashHandler"));
         if (linuxExe != null)
         {
             return depotDirectory.Combine($"{Path.GetFileNameWithoutExtension(linuxExe)}_Data");
