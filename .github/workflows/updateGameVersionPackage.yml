@@ -49,7 +49,7 @@ jobs:
       
       - name: Build
         run: |
-          ./build.sh --target something --game ${{ inputs.game }} --build ${{ inputs.buildId }} --steam-username ${{ secrets.steam_username }}
+          ./build.sh --game ${{ inputs.game }} --build ${{ inputs.buildId }} --steam-username ${{ secrets.steam_username }} --nuget-api-key ${{ secrets.nuget_api_key }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v3
