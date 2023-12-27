@@ -742,7 +742,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
     }
 }
 
-[TaskName("PublishPackageToNuGet")]
+[TaskName("PushNuGetPackages")]
 [IsDependentOn(typeof(MakePackagesTask))]
 public sealed class PushNuGetTask : FrostingTask<BuildContext>
 {
