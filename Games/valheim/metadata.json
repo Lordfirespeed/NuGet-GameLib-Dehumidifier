@@ -16,7 +16,10 @@
   },
   "processSettings": {
     "excludeAssemblies": [
-      "netstandard.dll"
+      "Mono*.dll",
+      "netstandard.dll",
+      "System*.dll",
+      "mscorlib.dll"
     ],
     "assembliesToPublicise": [],
     "isIL2Cpp": false
