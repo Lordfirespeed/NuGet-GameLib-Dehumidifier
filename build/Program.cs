@@ -543,6 +543,14 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
 
     private DirectoryPath DataDirectory(BuildContext context, int depotId)
     {
+        if (DepotDataDirectories.TryGetValue(depotId, out var dataDirectory)) return dataDirectory;
+        var computedResult = ComputeDataDirectory(context, depotId);
+        DepotDataDirectories[depotId] = computedResult;
+        return computedResult;
+    }
+
+    private DirectoryPath ComputeDataDirectory(BuildContext context, int depotId)
+    {
         var depotDirectory = context.GameDirectory.Combine("steam").Combine($"depot_{depotId}");
 
         var windowsExe = Directory.EnumerateFiles(depotDirectory.FullPath, "*.exe")
