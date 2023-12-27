@@ -19,11 +19,30 @@
     "assembliesToPublicise": [
       "Assembly-CSharp.dll",
       "RoR2.dll"
-    ]
+    ],
+    "isIL2Cpp": false
   },
   "nuget": {
     "name": "RiskOfRain2.GameLibs.Steam",
     "description": "Stripped and publicised game libraries for modding Risk of Rain 2."
   },
-  "gameVersions": []
+  "gameVersions": [
+    {
+      "buildId": 12605776,
+      "timeUpdated": 1699295903,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 632361,
+          "manifestId": 2538203695974683966
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.0",
+          "dependencies": []
+        }
+      ]
+    }
+  ]
 }
