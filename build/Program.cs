@@ -15,6 +15,8 @@ using Build.util;
 using Cake.Common;
 using Cake.Common.IO;
 using Cake.Common.Tools.Command;
+using Cake.Common.Tools.DotNet;
+using Cake.Common.Tools.DotNet.NuGet.Push;
 using Cake.Core;
 using Cake.Core.Diagnostics;
 using Cake.Core.IO;
@@ -738,7 +740,14 @@ public sealed class PushNuGetTask : FrostingTask<BuildContext>
 {
     public override void Run(BuildContext context)
     {
-        
+        var nugetPath = context.GameDirectory.Combine("nupkgs");
+        var settings = new DotNetNuGetPushSettings
+        {
+            Source = "https://api.nuget.org/v3/index.json",
+            ApiKey = context.NugetApiKey
+        };
+        foreach (var pkg in context.GetFiles(nugetPath.Combine("*.nupkg").FullPath))
+            context.DotNetNuGetPush(pkg, settings);
     }
 }
 
