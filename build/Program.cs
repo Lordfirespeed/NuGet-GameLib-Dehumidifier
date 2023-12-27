@@ -46,6 +46,7 @@ public class BuildContext : FrostingContext
     public string GameFolderName { get; }
     public int? GameBuildId { get; }
     public string SteamUsername { get; }
+    public string NugetApiKey { get; }
 
     public DirectoryPath RootDirectory { get; }
     public DirectoryPath GameDirectory => RootDirectory.Combine("Games").Combine(GameFolderName);
@@ -61,6 +62,7 @@ public class BuildContext : FrostingContext
         GameFolderName = context.Argument<string>("game");
         GameBuildId = context.Argument<int?>("build", null);
         SteamUsername = context.Argument<string>("steam-username", "");
+        NugetApiKey = context.Argument<string>("nuget-api-key", "");
         
         RootDirectory = context.Environment.WorkingDirectory.GetParent();
     }
