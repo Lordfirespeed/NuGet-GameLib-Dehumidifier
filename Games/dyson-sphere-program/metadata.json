@@ -18,11 +18,30 @@
     ],
     "assembliesToPublicise": [
       "Assembly-CSharp.dll"
-    ]
+    ],
+    "isIL2Cpp": false
   },
   "nuget": {
     "name": "DysonSphereProgram.GameLibs.Steam",
     "description": "Stripped and publicised game libraries for modding Dyson Sphere Program."
   },
-  "gameVersions": []
+  "gameVersions": [
+    {
+      "buildId": 13021605,
+      "timeUpdated": 1703172315,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 1366541,
+          "manifestId": 3700818433573659132
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.0",
+          "dependencies": []
+        }
+      ]
+    }
+  ]
 }
