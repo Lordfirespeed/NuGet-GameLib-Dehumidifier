@@ -752,4 +752,5 @@ public sealed class PushNuGetTask : FrostingTask<BuildContext>
 }
 
 [TaskName("Default")]
+[IsDependentOn(typeof(MakePackagesTask))]
 public class DefaultTask : FrostingTask { }
