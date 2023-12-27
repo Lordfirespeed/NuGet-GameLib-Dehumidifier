@@ -602,16 +602,16 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         {
             if (File.Exists(processedFilePath.FullPath))
             {
-                context.AssemblyProcessingTasks[fileMatch.Path] = Task.CompletedTask;
+                context.AssemblyProcessingTasks[filePath.FullPath] = Task.CompletedTask;
             }
             
-            processingHasStarted = context.AssemblyProcessingTasks.TryGetValue(fileMatch.Path, out processingCompleted);
+            processingHasStarted = context.AssemblyProcessingTasks.TryGetValue(filePath.FullPath, out processingCompleted);
 
             if (!processingHasStarted)
             {
                 processingCompletedSource = new TaskCompletionSource();
                 processingCompleted = processingCompletedSource.Task;
-                context.AssemblyProcessingTasks[fileMatch.Path] = processingCompleted;
+                context.AssemblyProcessingTasks[filePath.FullPath] = processingCompleted;
             }
         }
 
@@ -619,7 +619,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         {
             var shouldPublicise = PublicizeMatcher.Match(fileMatch.Path).HasMatches;
             var options = shouldPublicise ? StripAndPublicise : StripOnly;
-            context.Log.Information($"Stripping {(shouldPublicise ? "and publicising " : "")}{fileName}...");
+            context.Log.Information($"Stripping {(shouldPublicise ? "and publicising " : "")}{depot.DepotId}/{fileName}...");
             AssemblyPublicizer.Publicize(
                 filePath.FullPath, 
                 processedFilePath.FullPath, 
