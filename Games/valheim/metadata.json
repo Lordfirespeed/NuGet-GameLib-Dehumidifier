@@ -21,7 +21,11 @@
       "System*.dll",
       "mscorlib.dll"
     ],
-    "assembliesToPublicise": [],
+    "assembliesToPublicise": [
+      "Assembly-CSharp.dll",
+      "assembly_valheim.dll",
+      "assembly_guiutils.dll"
+    ],
     "isIL2Cpp": false
   },
   "nuget": {
