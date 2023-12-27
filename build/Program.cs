@@ -380,8 +380,16 @@ public sealed class CacheDependencyAssemblyNamesTask : FrostingTask<BuildContext
     
     private HashSet<string> DependencyAssemblyNamesForTfm(BuildContext context, FrameworkTarget target)
     {
-        // todo: packageDirs needs to be filtered based upon target.NuGetDependencies
-        var packageDirs = Directory.GetDirectories(context.GameDirectory.Combine("packages").FullPath);
+        var packageDirs = Directory.GetDirectories(context.GameDirectory.Combine("packages").FullPath)
+            .Where(
+                folderPath =>
+                {
+                    var folderName = Path.GetFileName(folderPath);
+                    return target.NuGetDependencies.Any(
+                        dependency => string.Equals(folderName, $"{dependency.Name}.{dependency.Version}", StringComparison.CurrentCultureIgnoreCase)
+                    );
+                }
+            );
         var sourceDirs = packageDirs.SelectMany(packageDir => new[] { "lib", "ref", "build" }.Select(subDir => Path.Join(packageDir, subDir)))
             .Where(Directory.Exists)
             .ToArray();
