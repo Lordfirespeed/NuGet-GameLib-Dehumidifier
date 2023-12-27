@@ -524,6 +524,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
     private Matcher AssemblyMatcher { get; } = new();
     private Matcher PublicizeMatcher { get; } = new();
     private Dictionary<int, FilePatternMatch[]> DepotAssemblies { get; } = new();
+    private Dictionary<int, DirectoryPath> DepotDataDirectories { get; } = new();
     private readonly object processingTasksLock = new();
 
     private AssemblyPublicizerOptions StripAndPublicise { get; }= new()
@@ -538,7 +539,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         Target = PublicizeTarget.None,
         Strip = true,
         IncludeOriginalAttributesAttribute = true,
-    }; 
+    };
 
     private DirectoryPath DataDirectory(BuildContext context, int depotId)
     {
