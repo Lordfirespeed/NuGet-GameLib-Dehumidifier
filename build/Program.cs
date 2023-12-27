@@ -282,7 +282,7 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
 {
     private static HttpClient NuGetClient = new()
     {
-        BaseAddress = new Uri("https://api.nuget.org/v3"),
+        BaseAddress = new Uri("https://api.nuget.org"),
     };
 
     private async Task<KeyValuePair<GameVersionEntry, bool>> CheckVersionOutdated(BuildContext context, GameVersionEntry versionEntry)
@@ -313,7 +313,7 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
 
     private async Task<bool> NuGetPackageVersionExists(string id, string version)
     {
-        var result = await NuGetClient.GetAsync($"registration5-semver1/{id.ToLower()}/{version}.json");
+        var result = await NuGetClient.GetAsync($"registration5-gz-semver2/{id.ToLower()}/{version}-alpha.1.json");
         if (result.StatusCode.Equals(HttpStatusCode.NotFound)) return false;
         if (!result.IsSuccessStatusCode) throw new Exception("Failed to check whether NuGet package version exists.");
         return true;
