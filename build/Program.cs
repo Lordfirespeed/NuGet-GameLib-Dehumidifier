@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -25,12 +24,15 @@ using Json.Schema;
 using Json.Schema.Serialization;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
+using NuGet;
+using HttpClient = System.Net.Http.HttpClient;
 using Path = System.IO.Path;
 
 namespace Build;
 
 public static class Program
 {
+    [STAThread] 
     public static int Main(string[] args)
     {
         return new CakeHost()
@@ -372,8 +374,9 @@ public sealed class CacheDependencyAssemblyNamesTask : FrostingTask<BuildContext
 {
     private delegate bool TargetFrameworkCanConsume(string dependencyTfm);
     
-    private HashSet<string> DependencyAssemblyNamesForTfm(BuildContext context, string tfm)
+    private HashSet<string> DependencyAssemblyNamesForTfm(BuildContext context, FrameworkTarget target)
     {
+        // todo: packageDirs needs to be filtered based upon target.NuGetDependencies
         var packageDirs = Directory.GetDirectories(context.GameDirectory.Combine("packages").FullPath);
         var sourceDirs = packageDirs.SelectMany(packageDir => new[] { "lib", "ref", "build" }.Select(subDir => Path.Join(packageDir, subDir)))
             .Where(Directory.Exists)
@@ -381,7 +384,7 @@ public sealed class CacheDependencyAssemblyNamesTask : FrostingTask<BuildContext
         var untargetedAssemblies = sourceDirs.SelectMany(
             sourceDir => Directory.GetFiles(sourceDir, "*.dll")
         );
-        var canConsume = ConsumptionChecker(tfm);
+        var canConsume = ConsumptionChecker(target.TargetFrameworkMoniker);
         var targetedSourceDirs = sourceDirs.SelectMany(Directory.GetDirectories)
             .Where(targetedSourceDir => canConsume(Path.GetFileName(targetedSourceDir)));
         var targetedAssemblies = targetedSourceDirs.SelectMany(
@@ -494,10 +497,9 @@ public sealed class CacheDependencyAssemblyNamesTask : FrostingTask<BuildContext
     public override void Run(BuildContext context)
     {
         context.FrameworkTargetDependencyAssemblyNames = new Dictionary<string, HashSet<string>>(
-            context.TargetVersion.FrameworkTargets.Select(target => target.TargetFrameworkMoniker)
-                .Select(
-                    tfm => new KeyValuePair<string, HashSet<string>>(tfm, DependencyAssemblyNamesForTfm(context, tfm))
-                )
+            context.TargetVersion.FrameworkTargets.Select(
+                target => new KeyValuePair<string, HashSet<string>>(target.TargetFrameworkMoniker, DependencyAssemblyNamesForTfm(context, target))
+            )
         );
     }
 }
@@ -571,6 +573,11 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
     {
         var filePath = ManagedDirectory(context, depot.DepotId).CombineWithFilePath(fileMatch.Path);
         var fileName = filePath.GetFilename().FullPath;
+
+        if (fileName.EndsWith("-stubs.dll")) return;
+        
+        var processedFilePath = filePath.GetDirectory()
+            .CombineWithFilePath($"{filePath.GetFilenameWithoutExtension()}-stubs.dll");
         
         var dependencyAssemblyNames = context.FrameworkTargetDependencyAssemblyNames[tfm];
         if (dependencyAssemblyNames.Contains(fileName)) return;
@@ -581,6 +588,11 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         
         lock (processingTasksLock)
         {
+            if (File.Exists(processedFilePath.FullPath))
+            {
+                context.AssemblyProcessingTasks[fileMatch.Path] = Task.CompletedTask;
+            }
+            
             processingHasStarted = context.AssemblyProcessingTasks.TryGetValue(fileMatch.Path, out processingCompleted);
 
             if (!processingHasStarted)
@@ -596,13 +608,17 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
             var shouldPublicise = PublicizeMatcher.Match(fileMatch.Path).HasMatches;
             var options = shouldPublicise ? StripAndPublicise : StripOnly;
             context.Log.Information($"Stripping {(shouldPublicise ? "and publicising " : "")}{fileName}...");
-            AssemblyPublicizer.Publicize(filePath.FullPath, filePath.FullPath, options);
+            AssemblyPublicizer.Publicize(
+                filePath.FullPath, 
+                processedFilePath.FullPath, 
+                options
+            );
             processingCompletedSource!.SetResult();
         }
 
         await (processingCompleted ?? Task.CompletedTask);
 
-        await using FileStream source = File.Open(filePath.FullPath, FileMode.Open);
+        await using FileStream source = File.Open(processedFilePath.FullPath, FileMode.Open);
         await using FileStream destination = File.Create(DepotTargetNupkgRefsDirectory(context, depot, tfm).CombineWithFilePath(fileName).FullPath);
         await source.CopyToAsync(destination);
     }
@@ -649,19 +665,74 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
     }
 } 
 
-// https://stackoverflow.com/questions/26682202/creating-a-nuget-package-programmatically
-[TaskName("MakePackage")]
+[TaskName("MakePackages")]
 [IsDependentOn(typeof(ProcessAssembliesTask))]
-public sealed class MakePackageTask : FrostingTask<BuildContext>
+public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
 {
-    public override void Run(BuildContext context)
+    private DirectoryPath DepotNupkgSourceDirectoryPath(BuildContext context, SteamGameDistributionDepot depot)
+        => context.GameDirectory
+            .Combine("nupkgs")
+            .Combine($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}");
+
+    private FilePath DepotNupkgPackedFilePath(BuildContext context, SteamGameDistributionDepot depot)
+        => context.GameDirectory
+            .Combine("nupkgs")
+            .CombineWithFilePath($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}.nupkg");
+    
+    public async Task MakeDepotPackage(BuildContext context, SteamGameDistributionDepot depot)
     {
-        
+        Manifest nuspec = new()
+        {
+            Metadata = new()
+            {
+                Authors = "lordfirespeed",
+                Version = context.TargetVersion.GameVersion,
+                Id = $"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}",
+                Description = context.GameMetadata.NuGet.Description 
+                              + "\n\nGenerated and managed by GameLib Dehumidifier.",
+                ProjectUrl = "https://github.com/Lordfirespeed/NuGet-GameLib-Dehumidifier",
+                DependencySets = context.TargetVersion.FrameworkTargets.Select(
+                    target => new ManifestDependencySet
+                    {
+                        TargetFramework = target.TargetFrameworkMoniker,
+                        Dependencies = target.NuGetDependencies.Select(
+                            dependency => new ManifestDependency
+                            {
+                                Id = dependency.Name,
+                                Version = dependency.Version,
+                            }
+                        ).ToList(),
+                    }
+                ).ToList(),
+            },
+            Files = [
+                new()
+                {
+                    Source = "refs/**",
+                    Target = "refs"
+                }
+            ],
+        };
+
+        var builder = new PackageBuilder();
+        builder.Populate(nuspec.Metadata);
+        builder.PopulateFiles(DepotNupkgSourceDirectoryPath(context, depot).FullPath, nuspec.Files);
+
+        await using FileStream stream = File.Open(DepotNupkgPackedFilePath(context, depot).FullPath, FileMode.OpenOrCreate);
+        builder.Save(stream);
+    }
+    
+    public override async Task RunAsync(BuildContext context)
+    {
+        Func<SteamGameDistributionDepot, Task> makeDepotPackage = depot => MakeDepotPackage(context, depot);
+        await Task.WhenAll(
+            context.GameMetadata.Steam.DistributionDepots.Values.Select(makeDepotPackage)
+        );
     }
 }
 
 [TaskName("PublishPackageToNuGet")]
-[IsDependentOn(typeof(MakePackageTask))]
+[IsDependentOn(typeof(MakePackagesTask))]
 public sealed class PushNuGetTask : FrostingTask<BuildContext>
 {
     public override void Run(BuildContext context)
