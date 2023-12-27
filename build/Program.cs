@@ -690,7 +690,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
             Metadata = new()
             {
                 Authors = "lordfirespeed",
-                Version = context.TargetVersion.GameVersion,
+                Version = $"{context.TargetVersion.GameVersion}-alpha.1",
                 Id = $"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}",
                 Description = context.GameMetadata.NuGet.Description 
                               + "\n\nGenerated and managed by GameLib Dehumidifier.",
