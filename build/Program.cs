@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -56,6 +57,7 @@ public class BuildContext : FrostingContext
 
     public Schema.GameMetadata GameMetadata { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
+    public HashSet<NuGetPackageVersion> ExistingPackageVersions { get; set; }
     public Dictionary<string, HashSet<string>> FrameworkTargetDependencyAssemblyNames { get; set; }
     public Dictionary<string, Task> AssemblyProcessingTasks { get; set; }
 
@@ -277,53 +279,61 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext
     }
 }
 
-[TaskName("CheckPackageVersionsUpToDate")]
-[IsDependentOn(typeof(FetchSteamAppInfoTask))]
-[IsDependentOn(typeof(HandleUnknownSteamBuildTask))]
-public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildContext>
+[TaskName("ListPackageVersions")]
+public sealed class ListPackageVersionsTask : AsyncFrostingTask<BuildContext>
 {
     private static HttpClient NuGetClient = new()
     {
         BaseAddress = new Uri("https://api.nuget.org"),
     };
 
-    private async Task<KeyValuePair<GameVersionEntry, bool>> CheckVersionOutdated(BuildContext context, GameVersionEntry versionEntry)
+    private async Task<IEnumerable<NuGetPackageVersion>> FetchNuGetPackageVersions(string packageId)
     {
-        var packagesExistAtVersion = await Task.WhenAll(
-            context.GameMetadata.NuGetPackageNames.Select(
-                packageName => NuGetPackageVersionExists(packageName, versionEntry.GameVersion)
-            )
-        );
+        var response = await NuGetClient.GetAsync($"v3/registration5-gz-semver2/{packageId.ToLower()}/index.json");
+        if (response.StatusCode.Equals(HttpStatusCode.NotFound)) return Array.Empty<NuGetPackageVersion>();
+        if (!response.IsSuccessStatusCode) throw new Exception($"Failed to fetch NuGet package index for {packageId}.");
 
-        return new KeyValuePair<GameVersionEntry, bool>(versionEntry, !packagesExistAtVersion.All(x => x));
-    }
-    
-    private async Task<GameVersionEntry[]> GetOutdatedVersions(BuildContext context)
-    {
-        var outdatedStatusPerVersion = await Task.WhenAll(
-            context.GameMetadata.GameVersions.Values.Select(
-                version => CheckVersionOutdated(context, version)
-            )
-        );
+        var packageIndex = await response.Content.ReadFromJsonAsync<NuGetPackageIndex>();
+        if (packageIndex == null) throw new Exception($"Failed to deserialize NuGet package index for {packageId}.");
 
-        var outdatedPackageVersions = outdatedStatusPerVersion
-            .Where(pair => pair.Value)
-            .Select(pair => pair.Key);
-
-        return outdatedPackageVersions.ToArray();
-    }
-
-    private async Task<bool> NuGetPackageVersionExists(string id, string version)
-    {
-        var result = await NuGetClient.GetAsync($"v3/registration5-gz-semver2/{id.ToLower()}/{version}-alpha.1.json");
-        if (result.StatusCode.Equals(HttpStatusCode.NotFound)) return false;
-        if (!result.IsSuccessStatusCode) throw new Exception("Failed to check whether NuGet package version exists.");
-        return true;
+        return packageIndex.VersionPages.SelectMany(page => page.Versions);
     }
     
     public override async Task RunAsync(BuildContext context)
     {
-        var outdatedBuildIds = (await GetOutdatedVersions(context)).Select(version => version.BuildId);
+        var existingPackageVersionsPerPackage = await Task.WhenAll(
+             context.GameMetadata.NuGetPackageNames.Select(FetchNuGetPackageVersions)
+        );
+        
+        context.ExistingPackageVersions = existingPackageVersionsPerPackage
+            .SelectMany(x => x)
+            .ToHashSet();
+    }
+}
+
+[TaskName("CheckPackageVersionsUpToDate")]
+[IsDependentOn(typeof(HandleUnknownSteamBuildTask))]
+[IsDependentOn(typeof(ListPackageVersionsTask))]
+public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildContext>
+{
+    private bool VersionOutdated(BuildContext context, GameVersionEntry versionEntry)
+    {
+        var nugetPackageVersions = context.GameMetadata.NuGetPackageNames.Select(
+            packageName => new NuGetPackageVersion { CatalogEntry = new() { Id = packageName, Version = $"{versionEntry.GameVersion}-alpha.1"} }
+        );
+
+        return nugetPackageVersions.Any(version => !context.ExistingPackageVersions.Contains(version));
+    }
+    
+    private IEnumerable<GameVersionEntry> GetOutdatedVersions(BuildContext context)
+    {
+        return context.GameMetadata.GameVersions.Values
+            .Where(version => VersionOutdated(context, version));
+    }
+    
+    public override async Task RunAsync(BuildContext context)
+    {
+        var outdatedBuildIds = GetOutdatedVersions(context).Select(version => version.BuildId);
         var outdatedBuildIdsJson = JsonSerializer.Serialize(outdatedBuildIds);
         
         var githubOutputFile = Environment.GetEnvironmentVariable("GITHUB_OUTPUT", EnvironmentVariableTarget.Process);
