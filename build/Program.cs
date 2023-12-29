@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -282,14 +283,19 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext
 [TaskName("ListPackageVersions")]
 public sealed class ListPackageVersionsTask : AsyncFrostingTask<BuildContext>
 {
-    private static HttpClient NuGetClient = new()
+    private static readonly HttpClientHandler GzipHandler = new()
+    {
+        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+    };
+    
+    private static readonly HttpClient GzipNuGetClient = new(GzipHandler)
     {
         BaseAddress = new Uri("https://api.nuget.org"),
     };
 
     private async Task<IEnumerable<NuGetPackageVersion>> FetchNuGetPackageVersions(string packageId)
     {
-        var response = await NuGetClient.GetAsync($"v3/registration5-gz-semver2/{packageId.ToLower()}/index.json");
+        var response = await GzipNuGetClient.GetAsync($"v3/registration5-gz-semver2/{packageId.ToLower()}/index.json");
         if (response.StatusCode.Equals(HttpStatusCode.NotFound)) return Array.Empty<NuGetPackageVersion>();
         if (!response.IsSuccessStatusCode) throw new Exception($"Failed to fetch NuGet package index for {packageId}.");
 
