@@ -741,6 +741,9 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
     
     public async Task MakeDepotPackage(BuildContext context, SteamGameDistributionDepot depot)
     {
+        var id = $"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}";
+        var nextRevision = NextRevisionNumber(context.ExistingPackageVersions, id, context.TargetVersion.GameVersion);
+        
         Manifest nuspec = new()
         {
             Metadata = new()
