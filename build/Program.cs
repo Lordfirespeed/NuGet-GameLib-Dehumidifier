@@ -704,6 +704,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
 } 
 
 [TaskName("MakePackages")]
+[IsDependentOn(typeof(ListPackageVersionsTask))]
 [IsDependentOn(typeof(ProcessAssembliesTask))]
 public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
 {
