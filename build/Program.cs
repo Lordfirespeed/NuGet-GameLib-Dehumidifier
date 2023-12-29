@@ -717,6 +717,27 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
         => context.GameDirectory
             .Combine("nupkgs")
             .CombineWithFilePath($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}.nupkg");
+
+    private int NextRevisionNumber(HashSet<NuGetPackageVersion> packageVersions, string packageId, string versionBase)
+    {
+        Regex pattern = new($@"^{Regex.Escape(versionBase)}-alpha\.(\d+)$", RegexOptions.Compiled);
+
+        try
+        {
+            return packageVersions
+                .Where(version => version.CatalogEntry.Id.Equals(packageId))
+                .Select(version => version.CatalogEntry.Version)
+                .Select(version => pattern.Match(version))
+                .Where(match => match.Success)
+                .Select(match => int.Parse(match.Groups[1].Value))
+                .Max() + 1;
+        }
+        catch (InvalidOperationException)
+        {
+            return 1;
+        }
+        
+    }
     
     public async Task MakeDepotPackage(BuildContext context, SteamGameDistributionDepot depot)
     {
