@@ -281,6 +281,7 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext
 }
 
 [TaskName("ListPackageVersions")]
+[IsDependentOn(typeof(PrepareTask))]
 public sealed class ListPackageVersionsTask : AsyncFrostingTask<BuildContext>
 {
     private static readonly HttpClientHandler GzipHandler = new()
