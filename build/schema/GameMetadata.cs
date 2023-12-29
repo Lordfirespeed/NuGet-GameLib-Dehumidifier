@@ -53,7 +53,7 @@ public class NuGetGameMetadata
 	[JsonPropertyName("description")]
 	public string Description { get; set; }
 	[JsonPropertyName("authors")]
-	public List<string> Authors { get; set; }
+	public List<string>? Authors { get; set; }
 }
 
 public class GameVersionMap : Dictionary<int, GameVersionEntry>
