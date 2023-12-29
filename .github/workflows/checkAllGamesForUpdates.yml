@@ -21,6 +21,7 @@ jobs:
           
   dispatch-game-update-checks:
     needs: list-games
+    if: ${{ needs.list-games.outputs.games != '[]' && needs.list-games.outputs.games != '' }}
     strategy: 
       matrix:
         game: ${{ fromJson(needs.list-games.outputs.games) }}
