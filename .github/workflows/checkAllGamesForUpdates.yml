@@ -31,5 +31,8 @@ jobs:
     uses: ./.github/workflows/checkGameForUpdates.yml
     with:
       game: ${{ matrix.game }}
+    permissions:
+      contents: write
+      pull-requests: write
     secrets: inherit
       
