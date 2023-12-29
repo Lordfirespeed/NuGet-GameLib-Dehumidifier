@@ -730,6 +730,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
                 new()
                 {
                     Source = "ref/**",
+                    Target = "ref"
                 }
             ],
         };
