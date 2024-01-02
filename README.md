@@ -34,6 +34,36 @@ The Dehumidifier project is intended to largely maintain its packages automatica
 differentiating it from BepInEx's service which requires significant input from community members 
 to keep packages up-to-date.
 
+## How does it work?
+
+It's all powered by GitHub Actions (workflows) and Cake Frosting DSL!
+
+### `checkAllGamesForUpdates`
+
+This workflow runs nightly, dispatching the `checkGameForUpdates` workflow for each game directory in the repository's `Games` folder.
+
+### `checkGameForUpdates`
+
+This workflow:
+1. fetches the steam app info for the target game.
+2. fetches the available NuGet package versions for the target game.
+3. if the current game version is not recognised (present in the game's `metadata.json`), a pull request is opened to add the version entry.
+   As Steam has no consistent info on actual version numbers (just build IDs), the version number must be filled manually before the PR is merged.
+4. dispatches the `updateGameVersionPackage` workflow for all game versions found in `metadata.json` that were not found on NuGet.
+
+### `updateGameVersionPacakge`
+
+This workflow:
+1. fetches the steam app info for the target game.
+2. fetches the available NuGet package versions for the target game.
+3. downloads the NuGet dependencies for the target game version.
+4. constructs an assembly name blacklist from the NuGet dependencies.
+5. downloads the game version's depot from Steam.
+6. strips (and publicizes) the game's assemblies.
+7. selects the next available pre-release number based on existing NuGet package versions.
+8. constructs a NuGet package containing the reference assemblies.
+9. pushes the package to [NuGet.org](https://nuget.org).
+
 ## Acknowledgements 
 
 - [BepInEx/BepInEx.NuGetUpload.Service](https://github.com/BepInEx/BepInEx.NuGetUpload.Service) for inspiration and publicising logic.
