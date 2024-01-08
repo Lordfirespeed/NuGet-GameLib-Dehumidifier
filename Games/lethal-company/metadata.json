@@ -1,5 +1,4 @@
 {
-  "$schema": "../../assets/game-metadata.schema.json#",
   "steam": {
     "appId": 1966720,
     "gameDistDepots": [
@@ -20,7 +19,8 @@
     "assembliesToPublicise": [
       "Assembly-CSharp.dll",
       "Assembly-CSharp-firstpass.dll"
-    ]
+    ],
+    "isIL2Cpp": false
   },
   "nuget": {
     "name": "LethalCompany.GameLibs.Steam",
@@ -139,6 +139,32 @@
         {
           "depotId": 1966721,
           "manifestId": 7637156099460715726
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.0",
+          "dependencies": [
+            {
+              "name": "UnityEngine.Modules",
+              "version": "2022.3.9"
+            },
+            {
+              "name": "Newtonsoft.JSON",
+              "version": "13.0.3"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "buildId": 13120469,
+      "timeUpdated": 1704747691,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 1966721,
+          "manifestId": 8928166772742545463
         }
       ],
       "frameworkTargets": [
