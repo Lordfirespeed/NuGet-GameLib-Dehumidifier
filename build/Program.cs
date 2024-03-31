@@ -736,7 +736,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
         }
         catch (InvalidOperationException)
         {
-            return 1;
+            return 0;
         }
         
     }
