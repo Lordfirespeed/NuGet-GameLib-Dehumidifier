@@ -47,6 +47,8 @@ public static class Program
 
 public class BuildContext : FrostingContext
 {
+    public const string DehumidifierVersionDiscriminatorPrefix = "ngd";
+
     public string GameFolderName { get; }
     public int? GameBuildId { get; }
     public string SteamUsername { get; }
@@ -326,7 +328,7 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
     private bool VersionOutdated(BuildContext context, GameVersionEntry versionEntry)
     {
         var nugetPackageVersions = context.GameMetadata.NuGetPackageNames.Select(
-            packageName => new NuGetPackageVersion { CatalogEntry = new() { Id = packageName, Version = $"{versionEntry.GameVersion}-alpha.1"} }
+            packageName => new NuGetPackageVersion { CatalogEntry = new() { Id = packageName, Version = $"{versionEntry.GameVersion}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}.0"} }
         );
 
         return nugetPackageVersions.Any(version => !context.ExistingPackageVersions.Contains(version));
@@ -720,7 +722,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
 
     private int NextRevisionNumber(HashSet<NuGetPackageVersion> packageVersions, string packageId, string versionBase)
     {
-        Regex pattern = new($@"^{Regex.Escape(versionBase)}-alpha\.(\d+)$", RegexOptions.Compiled);
+        Regex pattern = new($@"^{Regex.Escape(versionBase)}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}\.(\d+)$", RegexOptions.Compiled);
 
         try
         {
@@ -749,7 +751,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
             Metadata = new()
             {
                 Id = id,
-                Version = $"{context.TargetVersion.GameVersion}-alpha.{nextRevision}",
+                Version = $"{context.TargetVersion.GameVersion}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}.{nextRevision}",
                 Authors =  String.Join(',', context.GameMetadata.NuGet.Authors ?? ["lordfirespeed"]),
                 Description = context.GameMetadata.NuGet.Description 
                               + "\n\nGenerated and managed by GameLib Dehumidifier.",
