@@ -1,1 +1,29 @@
-{}
+{
+  "steam": {
+    "appId": 2881650,
+    "gameDistDepots": [
+      {
+        "depotId": 2881651,
+        "distributionName": "Windows",
+        "isDefault": true
+      }
+    ]
+  },
+  "processSettings": {
+    "excludeAssemblies": [
+      "Mono*.dll",
+      "netstandard.dll",
+      "System*.dll",
+      "mscorlib.dll"
+    ],
+    "assembliesToPublicise": [
+      "Assembly-CSharp.dll",
+      "Assembly-CSharp-firstpass.dll"
+    ]
+  },
+  "nuget": {
+    "name": "ContentWarning.GameLibs.Steam",
+    "description": "Stripped and publicized game libraries for modding Content Warning."
+  },
+  "gameVersions": []
+}
