@@ -25,5 +25,36 @@
     "name": "ContentWarning.GameLibs.Steam",
     "description": "Stripped and publicized game libraries for modding Content Warning."
   },
-  "gameVersions": []
+  "gameVersions": [
+    {
+      "buildId": 13937767,
+      "gameVersion": "0.1.7-a",
+      "timeUpdated": 1712158327,
+      "depots": [
+        {
+          "depotId": 2881651,
+          "manifestId": 3035453275016512980
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.1",
+          "dependencies": [
+            {
+              "name": "UnityEngine.Modules",
+              "version": "2022.3.10"
+            },
+            {
+              "name": "Newtonsoft.JSON",
+              "version": "13.0.3"
+            },
+            {
+              "name": "WebSocketSharp",
+              "version": "1.0.3-rc11"
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
