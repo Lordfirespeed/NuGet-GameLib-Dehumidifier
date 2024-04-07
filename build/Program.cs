@@ -28,7 +28,10 @@ using Json.Schema;
 using Json.Schema.Serialization;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
-using NuGet;
+using NuGet.Frameworks;
+using NuGet.Packaging;
+using NuGet.Packaging.Core;
+using NuGet.Versioning;
 using HttpClient = System.Net.Http.HttpClient;
 using Path = System.IO.Path;
 
@@ -745,39 +748,36 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
     {
         var id = $"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}";
         var nextRevision = NextRevisionNumber(context.ExistingPackageVersions, id, context.TargetVersion.GameVersion);
-        
-        Manifest nuspec = new()
+
+        ManifestMetadata metadata = new()
         {
-            Metadata = new()
-            {
-                Id = id,
-                Version = $"{context.TargetVersion.GameVersion}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}.{nextRevision}",
-                Authors =  String.Join(',', context.GameMetadata.NuGet.Authors ?? ["lordfirespeed"]),
-                Description = context.GameMetadata.NuGet.Description 
-                              + "\n\nGenerated and managed by GameLib Dehumidifier.",
-                ProjectUrl = "https://github.com/Lordfirespeed/NuGet-GameLib-Dehumidifier",
-                DependencySets = context.TargetVersion.FrameworkTargets.Select(
-                    target => new ManifestDependencySet
-                    {
-                        TargetFramework = target.TargetFrameworkMoniker,
-                        Dependencies = target.NuGetDependencies.Select(
-                            dependency => new ManifestDependency
-                            {
-                                Id = dependency.Name,
-                                Version = dependency.Version,
-                            }
-                        ).ToList(),
-                    }
-                ).ToList(),
-            },
-            Files = [
-                new()
-                {
-                    Source = "ref/**",
-                    Target = "ref"
-                }
-            ],
+            Id = id,
+            Version = new NuGetVersion($"{context.TargetVersion.GameVersion}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}.{nextRevision}"),
+            Authors =  context.GameMetadata.NuGet.Authors ?? ["lordfirespeed"],
+            Description = context.GameMetadata.NuGet.Description 
+                          + "\n\nGenerated and managed by GameLib Dehumidifier.",
+            DependencyGroups = context.TargetVersion.FrameworkTargets.Select(
+                target => new PackageDependencyGroup(
+                    NuGetFramework.Parse(target.TargetFrameworkMoniker),
+                    target.NuGetDependencies.Select(dependency => new PackageDependency(
+                        dependency.Name,
+                        new VersionRange(new NuGetVersion(dependency.Version))
+                    ))
+                )
+            )
         };
+        
+        metadata.SetProjectUrl("https://github.com/Lordfirespeed/NuGet-GameLib-Dehumidifier");
+
+        ManifestFile[] files = [
+            new()
+            {
+                Source = "ref/**",
+                Target = "ref"
+            }
+        ];
+
+        Manifest nuspec = new(metadata, files);
 
         var builder = new PackageBuilder();
         builder.Populate(nuspec.Metadata);
