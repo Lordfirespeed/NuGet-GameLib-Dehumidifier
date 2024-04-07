@@ -15,7 +15,6 @@
     <PackageReference Include="Cake.Frosting" Version="4.0.0" />
     <PackageReference Include="Cake.Git" Version="3.0.0" />
     <PackageReference Include="Cake.NuGet" Version="4.0.0" />
-    <PackageReference Include="NuGet.Core" Version="2.14.0" />
     <PackageReference Include="NuGet.Packaging" Version="6.9.1" />
     <PackageReference Include="NuGet.Protocol" Version="6.9.1" />
     <PackageReference Include="BepInEx.AssemblyPublicizer" Version="0.4.1" />
