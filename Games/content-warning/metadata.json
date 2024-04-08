@@ -53,32 +53,14 @@
               "name": "WebSocketSharp",
               "version": "1.0.3-rc11"
             }
-          ],
-          "Framework": {
-            "Framework": ".NETStandard",
-            "Version": "2.1.0.0",
-            "Platform": "",
-            "PlatformVersion": "0.0.0.0",
-            "HasPlatform": false,
-            "HasProfile": false,
-            "Profile": "",
-            "DotNetFrameworkName": ".NETStandard,Version=v2.1",
-            "DotNetPlatformName": "",
-            "IsPCL": false,
-            "IsPackageBased": true,
-            "AllFrameworkVersions": false,
-            "IsUnsupported": false,
-            "IsAgnostic": false,
-            "IsAny": false,
-            "IsSpecificFramework": true
-          }
+          ]
         }
       ]
     },
     {
       "buildId": 13965938,
       "timeUpdated": 1712338853,
-      "gameVersion": "",
+      "gameVersion": "0.1.8-b",
       "depots": [
         {
           "depotId": 2881651,
@@ -101,25 +83,7 @@
               "name": "WebSocketSharp",
               "version": "1.0.3-rc11"
             }
-          ],
-          "Framework": {
-            "Framework": ".NETStandard",
-            "Version": "2.1.0.0",
-            "Platform": "",
-            "PlatformVersion": "0.0.0.0",
-            "HasPlatform": false,
-            "HasProfile": false,
-            "Profile": "",
-            "DotNetFrameworkName": ".NETStandard,Version=v2.1",
-            "DotNetPlatformName": "",
-            "IsPCL": false,
-            "IsPackageBased": true,
-            "AllFrameworkVersions": false,
-            "IsUnsupported": false,
-            "IsAgnostic": false,
-            "IsAny": false,
-            "IsSpecificFramework": true
-          }
+          ]
         }
       ]
     }
