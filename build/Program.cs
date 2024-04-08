@@ -409,10 +409,21 @@ public sealed class DownloadNuGetDependenciesTask : NuGetTaskBase
     private static readonly PackageDownloadContext PackageDownloadContext = new(SourceCache);
     private static NuGetPathContext _pathContext = null!;
     private static DownloadResource _downloadResource = null!;
+    private static DownloadResource _bepInDownloadResource = null!;
 
     private async Task<DownloadResourceResult> DownloadNuGetPackageVersion(BuildContext context, PackageIdentity packageIdentity)
     {
-        return await _downloadResource.GetDownloadResourceResultAsync(
+        var result = await _downloadResource.GetDownloadResourceResultAsync(
+            packageIdentity,
+            PackageDownloadContext,
+            _pathContext.UserPackageFolder,
+            NullLogger.Instance,
+            default
+        );
+
+        if (result is not null) return result;
+
+        return await _bepInDownloadResource.GetDownloadResourceResultAsync(
             packageIdentity,
             PackageDownloadContext,
             _pathContext.UserPackageFolder,
@@ -425,6 +436,7 @@ public sealed class DownloadNuGetDependenciesTask : NuGetTaskBase
     {
         _pathContext = NuGetPathContext.Create(context.RootDirectory.FullPath);
         _downloadResource = await SourceRepository.GetResourceAsync<DownloadResource>();
+        _bepInDownloadResource = await BepInSourceRepository.GetResourceAsync<DownloadResource>();
 
         var downloadResults = await Task.WhenAll(
             context.TargetVersion.FrameworkTargets

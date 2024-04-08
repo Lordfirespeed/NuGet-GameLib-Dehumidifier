@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Cake.Frosting;
 using NuGet.Configuration;
+using NuGet.Packaging;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 
@@ -10,7 +11,9 @@ public abstract class NuGetTaskBase : AsyncFrostingTask<BuildContext>
 {
     protected static readonly SourceCacheContext SourceCache = new SourceCacheContext();
     protected static readonly PackageSource Source = new PackageSource("https://api.nuget.org/v3/index.json");
+    protected static readonly PackageSource BepInSource = new PackageSource("https://nuget.bepinex.dev/v3/index.json");
     protected static readonly SourceRepository SourceRepository = Repository.Factory.GetCoreV3(Source);
+    protected static readonly SourceRepository BepInSourceRepository = Repository.Factory.GetCoreV3(BepInSource);
     protected static readonly IEqualityComparer<IPackageSearchMetadata> PackageSearchMetadataComparer = new PackageSearchMetadataComparerImpl();
 
     private class PackageSearchMetadataComparerImpl : IEqualityComparer<IPackageSearchMetadata>
