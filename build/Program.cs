@@ -421,7 +421,7 @@ public sealed class DownloadNuGetDependenciesTask : NuGetTaskBase
             default
         );
 
-        if (result is not null) return result;
+        if (result.Status is DownloadResourceResultStatus.Available) return result;
 
         return await _bepInDownloadResource.GetDownloadResourceResultAsync(
             packageIdentity,
