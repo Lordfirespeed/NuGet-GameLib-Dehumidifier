@@ -5,6 +5,9 @@ using System.Numerics;
 using System.Text.Json.Serialization;
 using Json.Schema;
 using Json.Schema.Serialization;
+using NuGet.Frameworks;
+using NuGet.Packaging.Core;
+using NuGet.Versioning;
 
 namespace Build.Schema;
 
@@ -106,6 +109,11 @@ public class FrameworkTarget
 	public string TargetFrameworkMoniker { get; set; }
 	[JsonPropertyName("dependencies")]
 	public List<NuGetDependency> NuGetDependencies { get; set; }
+
+	[JsonIgnore] 
+	private NuGetFramework? _framework;
+
+	public NuGetFramework Framework => _framework ??= NuGetFramework.Parse(TargetFrameworkMoniker);
 }
 
 public class NuGetDependency
@@ -114,6 +122,11 @@ public class NuGetDependency
 	public string Name { get; set; }
 	[JsonPropertyName("version")]
 	public string Version { get; set; }
+
+	[JsonIgnore] 
+	private PackageIdentity? _packageIdentity;
+
+	public PackageIdentity ToPackageIdentity() => _packageIdentity ??= new PackageIdentity(Name, new NuGetVersion(Version));
 }
 
 public class SteamGameDistributionDepot
