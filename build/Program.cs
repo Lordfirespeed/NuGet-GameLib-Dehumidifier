@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using BepInEx.AssemblyPublicizer;
 using Build.Schema;
@@ -28,11 +27,13 @@ using Json.Schema;
 using Json.Schema.Serialization;
 using Microsoft.Extensions.FileSystemGlobbing;
 using Microsoft.Extensions.FileSystemGlobbing.Abstractions;
+using NuGet.Common;
+using NuGet.Configuration;
 using NuGet.Frameworks;
 using NuGet.Packaging;
 using NuGet.Packaging.Core;
+using NuGet.Protocol.Core.Types;
 using NuGet.Versioning;
-using HttpClient = System.Net.Http.HttpClient;
 using Path = System.IO.Path;
 
 namespace Build;
@@ -51,7 +52,7 @@ public static class Program
 public class BuildContext : FrostingContext
 {
     public const string DehumidifierVersionDiscriminatorPrefix = "ngd";
-
+    
     public string GameFolderName { get; }
     public int? GameBuildId { get; }
     public string SteamUsername { get; }
@@ -61,11 +62,33 @@ public class BuildContext : FrostingContext
     public DirectoryPath GameDirectory => RootDirectory.Combine("Games").Combine(GameFolderName);
     public GameVersionEntry TargetVersion => GameMetadata.GameVersions[GameBuildId ?? throw new Exception("Build ID not provided.")];
 
+    public Versioner Versioner { get; }
+    
     public Schema.GameMetadata GameMetadata { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
-    public HashSet<NuGetPackageVersion> ExistingPackageVersions { get; set; }
-    public Dictionary<string, HashSet<string>> FrameworkTargetDependencyAssemblyNames { get; set; }
     public Dictionary<string, Task> AssemblyProcessingTasks { get; set; }
+    
+    private ReadOnlyDictionary<string, IList<IPackageSearchMetadata>>? _allPackageVersionsToBridge;
+
+    public IDictionary<string, IList<IPackageSearchMetadata>> DeployedPackageMetadata {
+        get => _allPackageVersionsToBridge ?? throw new InvalidOperationException();
+        set => _allPackageVersionsToBridge = new ReadOnlyDictionary<string, IList<IPackageSearchMetadata>>(value);
+    }
+    
+    private ReadOnlyDictionary<PackageIdentity, DownloadResourceResult>? _nuGetPackageDownloadResults;
+
+    public IDictionary<PackageIdentity, DownloadResourceResult> NuGetPackageDownloadResults {
+        get => _nuGetPackageDownloadResults ?? throw new InvalidOperationException();
+        set => _nuGetPackageDownloadResults = new ReadOnlyDictionary<PackageIdentity, DownloadResourceResult>(value);
+    }
+
+    private ReadOnlyDictionary<NuGetFramework, ISet<string>>? _frameworkTargetDependencyAssemblyNames;
+
+    public IDictionary<NuGetFramework, ISet<string>> FrameworkTargetDependencyAssemblyNames
+    {
+        get => _frameworkTargetDependencyAssemblyNames ?? throw new InvalidOperationException();
+        set => _frameworkTargetDependencyAssemblyNames = new ReadOnlyDictionary<NuGetFramework, ISet<string>>(value);
+    }
 
     public BuildContext(ICakeContext context) : base(context)
     {
@@ -75,6 +98,7 @@ public class BuildContext : FrostingContext
         NugetApiKey = context.Argument<string>("nuget-api-key", "");
         
         RootDirectory = context.Environment.WorkingDirectory.GetParent();
+        Versioner = new(RootDirectory.FullPath);
     }
 
     public GitCommit InferredGitCommit(string message)
@@ -285,56 +309,71 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext
     }
 }
 
-[TaskName("ListPackageVersions")]
+[TaskName("Fetch NuGet context")]
 [IsDependentOn(typeof(PrepareTask))]
-public sealed class ListPackageVersionsTask : AsyncFrostingTask<BuildContext>
+public sealed class ListDeployedPackageVersionsTask : NuGetTaskBase
 {
-    private static readonly HttpClientHandler GzipHandler = new()
-    {
-        AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
-    };
-    
-    private static readonly HttpClient GzipNuGetClient = new(GzipHandler)
-    {
-        BaseAddress = new Uri("https://api.nuget.org"),
-    };
+    private PackageMetadataResource _packageMetadataResource = null!;
+    private readonly FloatRange _absoluteLatestFloatRange = new FloatRange(NuGetVersionFloatBehavior.AbsoluteLatest);
 
-    private async Task<IEnumerable<NuGetPackageVersion>> FetchNuGetPackageVersions(string packageId)
+    private readonly Dictionary<PackageIdentity, IList<PackageIdentity>> _resolvedPackageDependencies = new();
+
+    private async Task<IPackageSearchMetadata[]> FetchNuGetPackageMetadata(BuildContext context, string packageId)
     {
-        var response = await GzipNuGetClient.GetAsync($"v3/registration5-gz-semver2/{packageId.ToLower()}/index.json");
-        if (response.StatusCode.Equals(HttpStatusCode.NotFound)) return Array.Empty<NuGetPackageVersion>();
-        if (!response.IsSuccessStatusCode) throw new Exception($"Failed to fetch NuGet package index for {packageId}.");
-
-        var packageIndex = await response.Content.ReadFromJsonAsync<NuGetPackageIndex>();
-        if (packageIndex == null) throw new Exception($"Failed to deserialize NuGet package index for {packageId}.");
-
-        return packageIndex.VersionPages.SelectMany(page => page.Versions);
+        context.Log.Information($"Fetching index for NuGet package '{packageId}'");
+        return (await _packageMetadataResource.GetMetadataAsync(packageId, false, false, SourceCache,
+                NullLogger.Instance, default))
+            .ToArray();
     }
     
     public override async Task RunAsync(BuildContext context)
     {
-        var existingPackageVersionsPerPackage = await Task.WhenAll(
-             context.GameMetadata.NuGetPackageNames.Select(FetchNuGetPackageVersions)
-        );
+        _packageMetadataResource = await SourceRepository.GetResourceAsync<PackageMetadataResource>();
         
-        context.ExistingPackageVersions = existingPackageVersionsPerPackage
-            .SelectMany(x => x)
-            .ToHashSet();
+        var deployedPackageMetadata = await Task.WhenAll(
+            context.GameMetadata.NuGetPackageNames.Select(name => FetchNuGetPackageMetadata(context, name))
+        );
+
+        context.DeployedPackageMetadata = deployedPackageMetadata
+            .Zip(context.GameMetadata.NuGetPackageNames)
+            .ToDictionary(
+                item => item.Second,
+                item => item.First.ToList() as IList<IPackageSearchMetadata>
+            );
     }
 }
 
 [TaskName("CheckPackageVersionsUpToDate")]
 [IsDependentOn(typeof(HandleUnknownSteamBuildTask))]
-[IsDependentOn(typeof(ListPackageVersionsTask))]
+[IsDependentOn(typeof(ListDeployedPackageVersionsTask))]
 public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildContext>
 {
     private bool VersionOutdated(BuildContext context, GameVersionEntry versionEntry)
     {
-        var nugetPackageVersions = context.GameMetadata.NuGetPackageNames.Select(
-            packageName => new NuGetPackageVersion { CatalogEntry = new() { Id = packageName, Version = $"{versionEntry.GameVersion}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}.0"} }
+        var nugetPackageMetadatasForEntry = context.GameMetadata.NuGetPackageNames
+            .Select(name => context.DeployedPackageMetadata[name]);
+
+        return nugetPackageMetadatasForEntry.Any(
+            versionList => !HasDeployFromThisDehumidiferVersion(versionList.Where(IsDeployedForEntry))
         );
 
-        return nugetPackageVersions.Any(version => !context.ExistingPackageVersions.Contains(version));
+        bool IsDeployedForEntry(IPackageSearchMetadata packageVersion)
+        {
+            return packageVersion.Identity.Version.ToString().StartsWith(versionEntry.GameVersion);
+        }
+
+        bool HasDeployFromThisDehumidiferVersion(IEnumerable<IPackageSearchMetadata> packageVersions)
+        {
+            try {
+                var latest = packageVersions
+                    .OrderByDescending(version => version.Published)
+                    .First();
+                return latest.Published >= context.Versioner.LastVersionChangeWhen;
+            }
+            catch (InvalidOperationException) {
+                return false;
+            }
+        }
     }
     
     private IEnumerable<GameVersionEntry> GetOutdatedVersions(BuildContext context)
@@ -365,176 +404,119 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
 
 [TaskName("DownloadNuGetDependencies")]
 [IsDependentOn(typeof(PrepareTask))]
-public sealed class DownloadNuGetDependenciesTask : AsyncFrostingTask<BuildContext>
+public sealed class DownloadNuGetDependenciesTask : NuGetTaskBase
 {
-    private async Task DownloadNuGetPackage(BuildContext context, NuGetDependency package)
+    private static readonly PackageDownloadContext PackageDownloadContext = new(SourceCache);
+    private static NuGetPathContext _pathContext = null!;
+    private static DownloadResource _downloadResource = null!;
+
+    private async Task<DownloadResourceResult> DownloadNuGetPackageVersion(BuildContext context, PackageIdentity packageIdentity)
     {
-        await context.ProcessAsync(
-            new CommandSettings
-            {
-                ToolName = "NuGet",
-                ToolExecutableNames = new[] { "nuget", "nuget.exe" },
-            },
-            new ProcessArgumentBuilder()
-                .Append("install")
-                .Append(package.Name)
-                .AppendSwitch("-Version", package.Version)
-                .AppendSwitch("-OutputDirectory", context.GameDirectory.Combine("packages").FullPath)
+        return await _downloadResource.GetDownloadResourceResultAsync(
+            packageIdentity,
+            PackageDownloadContext,
+            _pathContext.UserPackageFolder,
+            NullLogger.Instance,
+            default
         );
     }
-    
+
     public override async Task RunAsync(BuildContext context)
     {
-        context.EnsureDirectoryExists(context.GameDirectory.Combine("packages"));
-        await Task.WhenAll(
+        _pathContext = NuGetPathContext.Create(context.RootDirectory.FullPath);
+        _downloadResource = await SourceRepository.GetResourceAsync<DownloadResource>();
+
+        var downloadResults = await Task.WhenAll(
             context.TargetVersion.FrameworkTargets
                 .SelectMany(target => target.NuGetDependencies)
-                .Select(dependency => DownloadNuGetPackage(context, dependency))
+                .Select(dependency => DownloadNuGetPackageVersion(context, dependency.ToPackageIdentity()))
         );
+
+        context.NuGetPackageDownloadResults = downloadResults
+            .ToDictionary(result => result.PackageReader.GetIdentity());
     }
 }
 
 [TaskName("CacheDependencyAssemblyNames")]
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
-public sealed class CacheDependencyAssemblyNamesTask : FrostingTask<BuildContext>
+public sealed class CacheDependencyAssemblyNamesTask : AsyncFrostingTask<BuildContext>
 {
-    private delegate bool TargetFrameworkCanConsume(string dependencyTfm);
+    private async Task<IEnumerable<string>> DependencyAssemblyNamesForTfmFromPackage(
+        BuildContext context,
+        FrameworkTarget target,
+        PackageReaderBase packageReader,
+        CancellationToken token
+    ) {
+        var itemEnumerables = await Task.WhenAll(
+            GetLibItems(),
+            GetRefItems(),
+            GetBuildItems()
+        );
+
+        var items = itemEnumerables.SelectMany(itemEnumerable => itemEnumerable);
+        var itemFileNames = items.Select(item => Path.GetFileName(item))
+            .Where(fileName => Path.GetExtension(fileName) == ".dll");
+
+        return itemFileNames.ToHashSet();
+        
+        async Task<IEnumerable<string>> GetLibItems()
+        {
+            var libItemGroups = await packageReader.GetLibItemsAsync(token);
+            var libItems = NuGetFrameworkUtility.GetNearest(libItemGroups, target.Framework, group => group.TargetFramework);
+            if (libItems is null) return Enumerable.Empty<string>();
+            return libItems.Items;
+        }
+
+        async Task<IEnumerable<string>> GetRefItems()
+        {
+            var refItemGroups = await packageReader.GetReferenceItemsAsync(token);
+            var refItems = NuGetFrameworkUtility.GetNearest(refItemGroups, target.Framework, group => group.TargetFramework);
+            if (refItems is null) return Enumerable.Empty<string>();
+            return refItems.Items;
+        }
+
+        async Task<IEnumerable<string>> GetBuildItems()
+        {
+            var buildItemGroups = await packageReader.GetBuildItemsAsync(token);
+            var buildItems = NuGetFrameworkUtility.GetNearest(buildItemGroups, target.Framework, group => group.TargetFramework);
+            if (buildItems is null) return Enumerable.Empty<string>();
+            return buildItems.Items;
+        }
+    }
     
-    private HashSet<string> DependencyAssemblyNamesForTfm(BuildContext context, FrameworkTarget target)
+    private async Task<HashSet<string>> DependencyAssemblyNamesForTfm(
+        BuildContext context,
+        FrameworkTarget target,
+        CancellationToken token
+    ) {
+        var packageReaders = target.NuGetDependencies
+            .Select(dependency => dependency.ToPackageIdentity())
+            .Select(identity => context.NuGetPackageDownloadResults[identity].PackageReader);
+
+        var packageAssemblyNames = await Task.WhenAll(
+            packageReaders.Select(async reader => await DependencyAssemblyNamesForTfmFromPackage(context, target, reader, token))
+        );
+
+        return packageAssemblyNames
+            .SelectMany(x => x)
+            .ToHashSet();
+    }
+    
+    public override async Task RunAsync(BuildContext context)
     {
-        var packageDirs = Directory.GetDirectories(context.GameDirectory.Combine("packages").FullPath)
-            .Where(
-                folderPath =>
-                {
-                    var folderName = Path.GetFileName(folderPath);
-                    return target.NuGetDependencies.Any(
-                        dependency => string.Equals(folderName, $"{dependency.Name}.{dependency.Version}", StringComparison.CurrentCultureIgnoreCase)
-                    );
-                }
+        var perFrameworkDependencyAssemblies = await Task.WhenAll(
+            context.TargetVersion.FrameworkTargets
+                .Select(
+                    async target => await DependencyAssemblyNamesForTfm(context, target, CancellationToken.None)
+                )
+        );
+
+        context.FrameworkTargetDependencyAssemblyNames = context.TargetVersion.FrameworkTargets
+            .Zip(perFrameworkDependencyAssemblies)
+            .ToDictionary(
+                item => item.First.Framework,
+                item => item.Second as ISet<string>
             );
-        var sourceDirs = packageDirs.SelectMany(packageDir => new[] { "lib", "ref", "build" }.Select(subDir => Path.Join(packageDir, subDir)))
-            .Where(Directory.Exists)
-            .ToArray();
-        var untargetedAssemblies = sourceDirs.SelectMany(
-            sourceDir => Directory.GetFiles(sourceDir, "*.dll")
-        );
-        var canConsume = ConsumptionChecker(target.TargetFrameworkMoniker);
-        var targetedSourceDirs = sourceDirs.SelectMany(Directory.GetDirectories)
-            .Where(targetedSourceDir => canConsume(Path.GetFileName(targetedSourceDir)));
-        var targetedAssemblies = targetedSourceDirs.SelectMany(
-            sourceDir => Directory.GetFiles(sourceDir, "*.dll")
-        );
-
-        return targetedAssemblies.Concat(untargetedAssemblies)
-            .Select(Path.GetFileName)
-            .Where(fileName => !String.IsNullOrWhiteSpace(fileName))
-            .ToHashSet()!;
-    }
-
-    private TargetFrameworkCanConsume ConsumptionChecker(string tfm)
-    {
-        var netCoreMatch = NetCoreTfmRegex.Match(tfm);
-        if (netCoreMatch.Success)
-        {
-            var netCoreVersion = new Version(netCoreMatch.Groups[1].Value);
-            return dependencyTfm => NetCoreCanConsume(netCoreVersion, dependencyTfm);
-        }
-
-        var netFrameworkMatch = NetFrameworkTfmRegex.Match(tfm);
-        if (netFrameworkMatch.Success)
-        {
-            var netFrameworkVersion = int.Parse(netFrameworkMatch.Groups[1].Value);
-            return dependencyTfm => NetFrameworkCanConsume(netFrameworkVersion, dependencyTfm);
-        }
-
-        var netStandardMatch = NetStandardTfmRegex.Match(tfm);
-        if (netStandardMatch.Success)
-        {
-            var netStandardVersion = new Version(netStandardMatch.Groups[1].Value);
-            return dependencyTfm => NetStandardCanConsume(netStandardVersion, dependencyTfm);
-        }
-
-        throw new ArgumentException("Unsupported target framework moniker; cannot determine consumable framework versions.");
-    }
-
-    private static readonly Regex NetCoreTfmRegex = new(@"^net([5678]\.0)$", RegexOptions.Compiled);
-    private static readonly Dictionary<Version, Version> NetCoreNetStandardVersionSupport = new()
-    {
-        [new Version(8, 0)] = new Version(2, 1),
-        [new Version(7, 0)] = new Version(2, 1),
-        [new Version(6, 0)] = new Version(2, 1),
-        [new Version(5, 0)] = new Version(2, 1),
-        [new Version(3, 1)] = new Version(2, 1),
-        [new Version(3, 0)] = new Version(2, 1),
-        
-        [new Version(2, 2)] = new Version(2, 0),
-        [new Version(2, 1)] = new Version(2, 0),
-        [new Version(2, 0)] = new Version(2, 0),
-        
-        [new Version(1, 1)] = new Version(1, 6),
-        [new Version(1, 0)] = new Version(1, 6),
-    };
-    private bool NetCoreCanConsume(Version version, string dependencyTfm)
-    {
-        var netCoreMatch = NetCoreTfmRegex.Match(dependencyTfm);
-        if (netCoreMatch.Success)
-        {
-            return version >= new Version(netCoreMatch.Groups[1].Value);
-        }
-
-        if (!NetCoreNetStandardVersionSupport.TryGetValue(version, out var supportedNetStandardVersion))
-            return false;
-
-        return NetStandardCanConsume(supportedNetStandardVersion, dependencyTfm);
-    }
-
-    private static readonly Regex NetFrameworkTfmRegex = new(@"^net(\d{2,3})$", RegexOptions.Compiled);
-    private static readonly int[] NetFrameworkVersionOrder = [11, 20, 35, 40, 403, 45, 451, 452, 46, 461, 462, 47, 471, 472, 48, 481];
-    private static readonly Dictionary<int, Version> NetFrameworkNetStandardVersionSupport = new()
-    {
-        [481] = new Version(2, 0),
-        [48] = new Version(2, 0),
-        [472] = new Version(2, 0),
-        [471] = new Version(2, 0),
-        [47] = new Version(2, 0),
-        [462] = new Version(2, 0),
-        [461] = new Version(2, 0),
-        [46] = new Version(1, 3),
-        [452] = new Version(1, 2),
-        [451] = new Version(1, 2),
-        [45] = new Version(1, 1),
-    };
-    private bool NetFrameworkCanConsume(int version, string dependencyTfm)
-    {
-        var netFrameworkMatch = NetFrameworkTfmRegex.Match(dependencyTfm);
-        if (netFrameworkMatch.Success)
-        {
-            return Array.IndexOf(NetFrameworkVersionOrder, version) >= 
-                   Array.IndexOf(NetFrameworkVersionOrder, int.Parse(netFrameworkMatch.Groups[1].Value));
-        }
-
-        if (!NetFrameworkNetStandardVersionSupport.TryGetValue(version, out var supportedNetStandardVersion))
-            return false;
-
-        return NetStandardCanConsume(supportedNetStandardVersion, dependencyTfm);
-    }
-
-    private static readonly Regex NetStandardTfmRegex = new(@"netstandard([12]\.\d)", RegexOptions.Compiled);
-    private bool NetStandardCanConsume(Version version, string dependencyTfm)
-    {
-        var netStandardMatch = NetStandardTfmRegex.Match(dependencyTfm);
-        if (!netStandardMatch.Success) return false;
-
-        return version >= new Version(netStandardMatch.Groups[1].Value);
-    }
-    
-    public override void Run(BuildContext context)
-    {
-        context.FrameworkTargetDependencyAssemblyNames = new Dictionary<string, HashSet<string>>(
-            context.TargetVersion.FrameworkTargets.Select(
-                target => new KeyValuePair<string, HashSet<string>>(target.TargetFrameworkMoniker, DependencyAssemblyNamesForTfm(context, target))
-            )
-        );
     }
 }
 
@@ -547,7 +529,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
     private Matcher PublicizeMatcher { get; } = new();
     private Dictionary<int, FilePatternMatch[]> DepotAssemblies { get; } = new();
     private Dictionary<int, DirectoryPath> DepotDataDirectories { get; } = new();
-    private readonly object processingTasksLock = new();
+    private readonly object _processingTasksLock = new();
 
     private AssemblyPublicizerOptions StripAndPublicise { get; }= new()
     {
@@ -604,32 +586,32 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
 
     private DirectoryPath ManagedDirectory(BuildContext context, int depotId) =>
         DataDirectory(context, depotId).Combine("Managed");
-    
-    private DirectoryPath DepotTargetNupkgRefsDirectory(BuildContext context, SteamGameDistributionDepot depot, string tfm)
+
+    private DirectoryPath DepotTargetNupkgRefsDirectory(BuildContext context, SteamGameDistributionDepot depot, NuGetFramework framework)
         => context.GameDirectory
             .Combine("nupkgs")
             .Combine($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}")
             .Combine("ref")
-            .Combine(tfm);
-    
-    private async Task ProcessAndCopyAssemblyForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, string tfm, FilePatternMatch fileMatch)
+            .Combine(framework.GetShortFolderName());
+
+    private async Task ProcessAndCopyAssemblyForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, NuGetFramework framework, FilePatternMatch fileMatch)
     {
         var filePath = ManagedDirectory(context, depot.DepotId).CombineWithFilePath(fileMatch.Path);
         var fileName = filePath.GetFilename().FullPath;
 
         if (fileName.EndsWith("-stubs.dll")) return;
-        
+
         var processedFilePath = filePath.GetDirectory()
             .CombineWithFilePath($"{filePath.GetFilenameWithoutExtension()}-stubs.dll");
-        
-        var dependencyAssemblyNames = context.FrameworkTargetDependencyAssemblyNames[tfm];
+
+        var dependencyAssemblyNames = context.FrameworkTargetDependencyAssemblyNames[framework];
         if (dependencyAssemblyNames.Contains(fileName)) return;
-        
+
         bool processingHasStarted;
         Task? processingCompleted;
         TaskCompletionSource? processingCompletedSource = null;
-        
-        lock (processingTasksLock)
+
+        lock (_processingTasksLock)
         {
             if (File.Exists(processedFilePath.FullPath))
             {
@@ -662,11 +644,11 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
         await (processingCompleted ?? Task.CompletedTask);
 
         await using FileStream source = File.Open(processedFilePath.FullPath, FileMode.Open);
-        await using FileStream destination = File.Create(DepotTargetNupkgRefsDirectory(context, depot, tfm).CombineWithFilePath(fileName).FullPath);
+        await using FileStream destination = File.Create(DepotTargetNupkgRefsDirectory(context, depot, framework).CombineWithFilePath(fileName).FullPath);
         await source.CopyToAsync(destination);
     }
 
-    private async Task CopyAssembliesForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, string tfm)
+    private async Task CopyAssembliesForDepotTarget(BuildContext context, SteamGameDistributionDepot depot, NuGetFramework tfm)
     {
         Task ProcessAndCopyAssembly(FilePatternMatch path) => ProcessAndCopyAssemblyForDepotTarget(context, depot, tfm, path);
         context.EnsureDirectoryExists(DepotTargetNupkgRefsDirectory(context, depot, tfm).FullPath);
@@ -683,10 +665,10 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
             new DirectoryInfoWrapper(new DirectoryInfo(ManagedDirectory(context, depot.DepotId).FullPath))
         ).Files.ToArray();
         
-        Task CopyAssembliesForTarget(string tfm) => CopyAssembliesForDepotTarget(context, depot, tfm);
+        Task CopyAssembliesForTarget(NuGetFramework tfm) => CopyAssembliesForDepotTarget(context, depot, tfm);
         await Task.WhenAll(
             context.TargetVersion.FrameworkTargets
-                .Select(target => target.TargetFrameworkMoniker)
+                .Select(target => target.Framework)
                 .Select(CopyAssembliesForTarget)
         );
     }
@@ -709,7 +691,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
 } 
 
 [TaskName("MakePackages")]
-[IsDependentOn(typeof(ListPackageVersionsTask))]
+[IsDependentOn(typeof(ListDeployedPackageVersionsTask))]
 [IsDependentOn(typeof(ProcessAssembliesTask))]
 public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
 {
@@ -723,16 +705,16 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
             .Combine("nupkgs")
             .CombineWithFilePath($"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}.nupkg");
 
-    private int NextRevisionNumber(HashSet<NuGetPackageVersion> packageVersions, string packageId, string versionBase)
+    private int NextRevisionNumber(IEnumerable<IPackageSearchMetadata> packageVersions, string packageId, string versionBase)
     {
         Regex pattern = new($@"^{Regex.Escape(versionBase)}-{BuildContext.DehumidifierVersionDiscriminatorPrefix}\.(\d+)$", RegexOptions.Compiled);
 
         try
         {
             return packageVersions
-                .Where(version => version.CatalogEntry.Id.Equals(packageId))
-                .Select(version => version.CatalogEntry.Version)
-                .Select(version => pattern.Match(version))
+                .Where(version => version.Identity.Id.Equals(packageId))
+                .Select(version => version.Identity.Version)
+                .Select(version => pattern.Match(version.ToString()))
                 .Where(match => match.Success)
                 .Select(match => int.Parse(match.Groups[1].Value))
                 .Max() + 1;
@@ -747,7 +729,10 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
     public async Task MakeDepotPackage(BuildContext context, SteamGameDistributionDepot depot)
     {
         var id = $"{context.GameMetadata.NuGet.Name}{depot.PackageSuffix}";
-        var nextRevision = NextRevisionNumber(context.ExistingPackageVersions, id, context.TargetVersion.GameVersion);
+        var allVersions = context.DeployedPackageMetadata
+            .Values
+            .SelectMany(packageVersions => packageVersions);
+        var nextRevision = NextRevisionNumber(allVersions, id, context.TargetVersion.GameVersion);
 
         ManifestMetadata metadata = new()
         {
