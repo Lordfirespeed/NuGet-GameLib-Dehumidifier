@@ -113,6 +113,7 @@ public class FrameworkTarget
 	[JsonIgnore] 
 	private NuGetFramework? _framework;
 
+	[JsonIgnore]
 	public NuGetFramework Framework => _framework ??= NuGetFramework.Parse(TargetFrameworkMoniker);
 }
 
