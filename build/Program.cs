@@ -809,7 +809,8 @@ public sealed class PushNuGetTask : FrostingTask<BuildContext>
         var settings = new DotNetNuGetPushSettings
         {
             Source = "https://api.nuget.org/v3/index.json",
-            ApiKey = context.NugetApiKey
+            ApiKey = context.NugetApiKey,
+            SkipDuplicate = true,
         };
         foreach (var pkg in context.GetFiles(nugetPath.Combine("*.nupkg").FullPath))
             context.DotNetNuGetPush(pkg, settings);
