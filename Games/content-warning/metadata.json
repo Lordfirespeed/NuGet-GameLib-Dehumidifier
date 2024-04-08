@@ -19,7 +19,8 @@
     "assembliesToPublicise": [
       "Assembly-CSharp.dll",
       "Assembly-CSharp-firstpass.dll"
-    ]
+    ],
+    "isIL2Cpp": false
   },
   "nuget": {
     "name": "ContentWarning.GameLibs.Steam",
@@ -28,8 +29,8 @@
   "gameVersions": [
     {
       "buildId": 13937767,
-      "gameVersion": "0.1.7-a",
       "timeUpdated": 1712158327,
+      "gameVersion": "0.1.7-a",
       "depots": [
         {
           "depotId": 2881651,
@@ -52,7 +53,73 @@
               "name": "WebSocketSharp",
               "version": "1.0.3-rc11"
             }
-          ]
+          ],
+          "Framework": {
+            "Framework": ".NETStandard",
+            "Version": "2.1.0.0",
+            "Platform": "",
+            "PlatformVersion": "0.0.0.0",
+            "HasPlatform": false,
+            "HasProfile": false,
+            "Profile": "",
+            "DotNetFrameworkName": ".NETStandard,Version=v2.1",
+            "DotNetPlatformName": "",
+            "IsPCL": false,
+            "IsPackageBased": true,
+            "AllFrameworkVersions": false,
+            "IsUnsupported": false,
+            "IsAgnostic": false,
+            "IsAny": false,
+            "IsSpecificFramework": true
+          }
+        }
+      ]
+    },
+    {
+      "buildId": 13965938,
+      "timeUpdated": 1712338853,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 2881651,
+          "manifestId": 8049615548599526111
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.1",
+          "dependencies": [
+            {
+              "name": "UnityEngine.Modules",
+              "version": "2022.3.10"
+            },
+            {
+              "name": "Newtonsoft.JSON",
+              "version": "13.0.3"
+            },
+            {
+              "name": "WebSocketSharp",
+              "version": "1.0.3-rc11"
+            }
+          ],
+          "Framework": {
+            "Framework": ".NETStandard",
+            "Version": "2.1.0.0",
+            "Platform": "",
+            "PlatformVersion": "0.0.0.0",
+            "HasPlatform": false,
+            "HasProfile": false,
+            "Profile": "",
+            "DotNetFrameworkName": ".NETStandard,Version=v2.1",
+            "DotNetPlatformName": "",
+            "IsPCL": false,
+            "IsPackageBased": true,
+            "AllFrameworkVersions": false,
+            "IsUnsupported": false,
+            "IsAgnostic": false,
+            "IsAny": false,
+            "IsSpecificFramework": true
+          }
         }
       ]
     }
