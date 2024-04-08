@@ -68,11 +68,11 @@ public class BuildContext : FrostingContext
     public SteamAppInfo GameAppInfo { get; set; }
     public Dictionary<string, Task> AssemblyProcessingTasks { get; set; }
     
-    private ReadOnlyDictionary<string, IList<IPackageSearchMetadata>>? _allPackageVersionsToBridge;
+    private ReadOnlyDictionary<string, IList<IPackageSearchMetadata>>? _deployedPackageMetadata;
 
     public IDictionary<string, IList<IPackageSearchMetadata>> DeployedPackageMetadata {
-        get => _allPackageVersionsToBridge ?? throw new InvalidOperationException();
-        set => _allPackageVersionsToBridge = new ReadOnlyDictionary<string, IList<IPackageSearchMetadata>>(value);
+        get => _deployedPackageMetadata ?? throw new InvalidOperationException();
+        set => _deployedPackageMetadata = new ReadOnlyDictionary<string, IList<IPackageSearchMetadata>>(value);
     }
     
     private ReadOnlyDictionary<PackageIdentity, DownloadResourceResult>? _nuGetPackageDownloadResults;
@@ -321,7 +321,7 @@ public sealed class ListDeployedPackageVersionsTask : NuGetTaskBase
     private async Task<IPackageSearchMetadata[]> FetchNuGetPackageMetadata(BuildContext context, string packageId)
     {
         context.Log.Information($"Fetching index for NuGet package '{packageId}'");
-        return (await _packageMetadataResource.GetMetadataAsync(packageId, false, false, SourceCache,
+        return (await _packageMetadataResource.GetMetadataAsync(packageId, true, false, SourceCache,
                 NullLogger.Instance, default))
             .ToArray();
     }
