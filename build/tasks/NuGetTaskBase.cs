@@ -7,7 +7,7 @@ using NuGet.Protocol.Core.Types;
 
 namespace Build.Tasks;
 
-public abstract class NuGetTaskBase : AsyncFrostingTask<BuildContext>
+public abstract class NuGetTaskBase : AsyncFrostingTaskBase<BuildContext>
 {
     protected static readonly SourceCacheContext SourceCache = new SourceCacheContext();
     protected static readonly PackageSource Source = new PackageSource("https://api.nuget.org/v3/index.json");

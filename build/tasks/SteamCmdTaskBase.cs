@@ -9,7 +9,7 @@ using Cake.Frosting;
 
 namespace Build.Tasks;
 
-public abstract class SteamCmdTaskBase : AsyncFrostingTask<BuildContext>
+public abstract class SteamCmdTaskBase : AsyncFrostingTaskBase<BuildContext>
 {
     public delegate ProcessArgumentBuilder BuildArguments(ProcessArgumentBuilder builder);
     
