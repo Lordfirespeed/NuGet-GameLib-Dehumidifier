@@ -10,16 +10,14 @@ jobs:
     name: List games in repository 
     runs-on: ubuntu-latest
     outputs: 
-      games: ${{ steps.list.outputs.folders }}
+      games: ${{ steps.list.outputs.games }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
     
       - name: List games
         id: list
-        uses: kmanimaran/list-folder-action@v4
-        with:
-          path: ./Games
+        uses: ./.github/actions/listGames
           
   dispatch-game-update-checks:
     needs: list-games
