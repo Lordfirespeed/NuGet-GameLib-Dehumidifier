@@ -400,6 +400,12 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildCo
             Console.WriteLine($"::set-output name=outdated-version-buildIds::{outdatedBuildIdsJson}");
         }
     }
+    
+    public override void OnError(Exception exception, BuildContext context)
+    {
+        base.OnError(exception, context);
+        Console.WriteLine(exception.StackTrace);
+    }
 }
 
 [TaskName("DownloadNuGetDependencies")]
