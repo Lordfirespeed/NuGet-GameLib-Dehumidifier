@@ -111,7 +111,7 @@ public class BuildContext : FrostingContext
 }
 
 [TaskName("Clean")]
-public sealed class CleanTask : FrostingTask<BuildContext>
+public sealed class CleanTask : FrostingTaskBase<BuildContext>
 {
     public override void Run(BuildContext context)
     {
@@ -121,7 +121,7 @@ public sealed class CleanTask : FrostingTask<BuildContext>
 }
 
 [TaskName("RegisterJSONSchemas")]
-public sealed class RegisterJsonSchemasTask : FrostingTask<BuildContext>
+public sealed class RegisterJsonSchemasTask : FrostingTaskBase<BuildContext>
 {
     public override void Run(BuildContext context)
     {
@@ -135,7 +135,7 @@ public sealed class RegisterJsonSchemasTask : FrostingTask<BuildContext>
 [TaskName("Prepare")]
 [IsDependentOn(typeof(CleanTask))]
 [IsDependentOn(typeof(RegisterJsonSchemasTask))]
-public sealed class PrepareTask : AsyncFrostingTask<BuildContext>
+public sealed class PrepareTask : AsyncFrostingTaskBase<BuildContext>
 {
     public static JsonSerializerOptions GameMetadataSerializerOptions = new()
     {
@@ -167,7 +167,7 @@ public sealed class PrepareTask : AsyncFrostingTask<BuildContext>
 
 [TaskName("HandleUnknownSteamBuild")]
 [IsDependentOn(typeof(FetchSteamAppInfoTask))]
-public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTask<BuildContext>
+public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildContext>
 {
     private async Task SerializeGameMetadata(BuildContext context)
     {
@@ -346,7 +346,7 @@ public sealed class ListDeployedPackageVersionsTask : NuGetTaskBase
 [TaskName("CheckPackageVersionsUpToDate")]
 [IsDependentOn(typeof(HandleUnknownSteamBuildTask))]
 [IsDependentOn(typeof(ListDeployedPackageVersionsTask))]
-public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTask<BuildContext>
+public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTaskBase<BuildContext>
 {
     private bool VersionOutdated(BuildContext context, GameVersionEntry versionEntry)
     {
@@ -463,7 +463,7 @@ public sealed class DownloadNuGetDependenciesTask : NuGetTaskBase
 
 [TaskName("CacheDependencyAssemblyNames")]
 [IsDependentOn(typeof(DownloadNuGetDependenciesTask))]
-public sealed class CacheDependencyAssemblyNamesTask : AsyncFrostingTask<BuildContext>
+public sealed class CacheDependencyAssemblyNamesTask : AsyncFrostingTaskBase<BuildContext>
 {
     private async Task<IEnumerable<string>> DependencyAssemblyNamesForTfmFromPackage(
         BuildContext context,
@@ -547,7 +547,7 @@ public sealed class CacheDependencyAssemblyNamesTask : AsyncFrostingTask<BuildCo
 [TaskName("ProcessAssemblies")]
 [IsDependentOn(typeof(SteamDownloadDepotsTask))]
 [IsDependentOn(typeof(CacheDependencyAssemblyNamesTask))]
-public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
+public sealed class ProcessAssembliesTask : AsyncFrostingTaskBase<BuildContext>
 {
     private Matcher AssemblyMatcher { get; } = new();
     private Matcher PublicizeMatcher { get; } = new();
@@ -717,7 +717,7 @@ public sealed class ProcessAssembliesTask : AsyncFrostingTask<BuildContext>
 [TaskName("MakePackages")]
 [IsDependentOn(typeof(ListDeployedPackageVersionsTask))]
 [IsDependentOn(typeof(ProcessAssembliesTask))]
-public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
+public sealed class MakePackagesTask : AsyncFrostingTaskBase<BuildContext>
 {
     private DirectoryPath DepotNupkgSourceDirectoryPath(BuildContext context, SteamGameDistributionDepot depot)
         => context.GameDirectory
@@ -807,7 +807,7 @@ public sealed class MakePackagesTask : AsyncFrostingTask<BuildContext>
 
 [TaskName("PushNuGetPackages")]
 [IsDependentOn(typeof(MakePackagesTask))]
-public sealed class PushNuGetTask : FrostingTask<BuildContext>
+public sealed class PushNuGetTask : FrostingTaskBase<BuildContext>
 {
     public override void Run(BuildContext context)
     {
