@@ -9,6 +9,7 @@ public abstract class AsyncFrostingTaskBase<T> : AsyncFrostingTask<T> where T : 
     public override void OnError(Exception exception, T context)
     {
         base.OnError(exception, context);
-        Console.WriteLine(exception.StackTrace);
+        Console.WriteLine(exception);
+        throw exception;
     }
 }

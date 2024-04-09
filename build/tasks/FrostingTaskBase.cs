@@ -9,6 +9,7 @@ public abstract class FrostingTaskBase<T> : FrostingTask<T> where T : ICakeConte
     public override void OnError(Exception exception, T context)
     {
         base.OnError(exception, context);
-        Console.WriteLine(exception.StackTrace);
+        Console.WriteLine(exception);
+        throw exception;
     }
 }
