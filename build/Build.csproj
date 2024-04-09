@@ -13,7 +13,8 @@
     <PackageReference Include="ValveKeyValue" Version="0.9.*" />
     <PackageReference Include="JsonSchema.Net" Version="5.4.1" />
     <PackageReference Include="Cake.Frosting" Version="4.0.0" />
-    <PackageReference Include="Cake.Git" Version="3.0.0" />
+    <PackageReference Include="Cake.Git" Version="4.0.0" />
+    <PackageReference Include="LibGit2Sharp" Version="0.29.0" />
     <PackageReference Include="Cake.NuGet" Version="4.0.0" />
     <PackageReference Include="NuGet.Packaging" Version="6.9.1" />
     <PackageReference Include="NuGet.Protocol" Version="6.9.1" />
