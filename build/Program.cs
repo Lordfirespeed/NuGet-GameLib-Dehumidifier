@@ -400,12 +400,6 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTaskBase<Bui
             Console.WriteLine($"::set-output name=outdated-version-buildIds::{outdatedBuildIdsJson}");
         }
     }
-    
-    public override void OnError(Exception exception, BuildContext context)
-    {
-        base.OnError(exception, context);
-        Console.WriteLine(exception.StackTrace);
-    }
 }
 
 [TaskName("DownloadNuGetDependencies")]
@@ -452,12 +446,6 @@ public sealed class DownloadNuGetDependenciesTask : NuGetTaskBase
 
         context.NuGetPackageDownloadResults = downloadResults
             .ToDictionary(result => result.PackageReader.GetIdentity());
-    }
-
-    public override void OnError(Exception exception, BuildContext context)
-    {
-        base.OnError(exception, context);
-        Console.WriteLine(exception.StackTrace);
     }
 }
 
