@@ -1,0 +1,14 @@
+name: 'List Games'
+description: 'lists all game configurations in the repository as JSON'
+outputs:
+  games:
+    value: ${{ steps.list-all-games.outputs.games }}
+    description: "JSON list of game identifiers"
+runs:
+  using: composite
+  steps:
+    - id: list-all-games
+      shell: bash
+      run: |
+        identifiers=$(find ./Games/* -maxdepth 0 -type d -exec basename {} \;)
+        echo "games=$(echo "$identifiers" | jq --raw-input | jq --slurp --compact-output)" >> $GITHUB_OUTPUT
