@@ -5,7 +5,6 @@ using Build.util;
 using Cake.Common.Tools.Command;
 using Cake.Core;
 using Cake.Core.IO;
-using Cake.Frosting;
 
 namespace Build.Tasks;
 

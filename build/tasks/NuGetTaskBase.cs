@@ -1,7 +1,5 @@
 using System.Collections.Generic;
-using Cake.Frosting;
 using NuGet.Configuration;
-using NuGet.Packaging;
 using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 
