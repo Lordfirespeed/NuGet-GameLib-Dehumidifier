@@ -84,6 +84,32 @@
           ]
         }
       ]
+    },
+    {
+      "buildId": 16223075,
+      "timeUpdated": 1730274647,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 892972,
+          "manifestId": 3208396899566460743
+        },
+        {
+          "depotId": 892971,
+          "manifestId": 7890609055808802603
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.0",
+          "dependencies": [
+            {
+              "name": "UnityEngine.Modules",
+              "version": "2022.3.12"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
