@@ -48,6 +48,28 @@
           ]
         }
       ]
+    },
+    {
+      "buildId": 16545291,
+      "timeUpdated": 1733853291,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 632361,
+          "manifestId": 5418745512668761974
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.0",
+          "dependencies": [
+            {
+              "name": "UnityEngine.Modules",
+              "version": "2019.4.26"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
