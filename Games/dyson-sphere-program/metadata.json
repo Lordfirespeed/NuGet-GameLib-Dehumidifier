@@ -267,6 +267,28 @@
           ]
         }
       ]
+    },
+    {
+      "buildId": 17120652,
+      "timeUpdated": 1737728690,
+      "gameVersion": "",
+      "depots": [
+        {
+          "depotId": 1366541,
+          "manifestId": 902026745661760921
+        }
+      ],
+      "frameworkTargets": [
+        {
+          "tfm": "netstandard2.0",
+          "dependencies": [
+            {
+              "name": "UnityEngine.Modules",
+              "version": "2018.4.12"
+            }
+          ]
+        }
+      ]
     }
   ]
 }
