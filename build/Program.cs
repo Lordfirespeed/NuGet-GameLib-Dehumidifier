@@ -60,11 +60,12 @@ public class BuildContext : FrostingContext
 
     public DirectoryPath RootDirectory { get; }
     public DirectoryPath GameDirectory => RootDirectory.Combine("Games").Combine(GameFolderName);
-    public GameVersionEntry TargetVersion => GameMetadata.GameVersions[GameBuildId ?? throw new Exception("Build ID not provided.")];
+    public GameVersionEntry TargetVersion => GameVersions[GameBuildId ?? throw new Exception("Build ID not provided.")];
 
     public Versioner Versioner { get; }
     
     public Schema.GameMetadata GameMetadata { get; set; }
+    public Schema.GameVersionMap GameVersions { get; set; }
     public SteamAppInfo GameAppInfo { get; set; }
     public Dictionary<string, Task> AssemblyProcessingTasks { get; set; }
     
@@ -157,10 +158,42 @@ public sealed class PrepareTask : AsyncFrostingTaskBase<BuildContext>
         return await JsonSerializer.DeserializeAsync<Schema.GameMetadata>(gameDataStream, GameMetadataSerializerOptions)
             ?? throw new ArgumentException("Game metadata could not be deserialized.");
     }
-    
+
+    public async Task<GameVersionMap> DeserializeGameVersions(BuildContext context)
+    {
+        Matcher versionFileMatcher = new();
+        versionFileMatcher.AddInclude("*.json");
+        
+        var versionsPath = context.GameDirectory.Combine("versions");
+        var versionFileMatches = versionFileMatcher.Execute(
+            new DirectoryInfoWrapper(new DirectoryInfo(versionsPath.FullPath))
+        ).Files;
+
+        var gameVersions = await Task.WhenAll(
+            versionFileMatches
+                .Select(match => versionsPath.CombineWithFilePath(match.Path))
+                .Select(filePath => DeserializeGameVersion(context, filePath))
+        );
+        GameVersionMap gameVersionsMap = new();
+        foreach (var gameVersion in gameVersions) {
+            gameVersionsMap[gameVersion.BuildId] = gameVersion;
+        }
+
+        return gameVersionsMap;
+    }
+
+    public async Task<GameVersionEntry> DeserializeGameVersion(BuildContext context, FilePath gameVersionFilePath)
+    {
+        await using FileStream versionEntryStream = File.OpenRead(gameVersionFilePath.FullPath);
+
+        return await JsonSerializer.DeserializeAsync<Schema.GameVersionEntry>(versionEntryStream, GameMetadataSerializerOptions)
+            ?? throw new ArgumentException($"Game version {gameVersionFilePath.GetFilename()} could not be deserialized.");
+    }
+
     public override async Task RunAsync(BuildContext context)
     {
         context.GameMetadata = await DeserializeGameMetadata(context);
+        context.GameVersions = await DeserializeGameVersions(context);
         context.Environment.WorkingDirectory = context.GameDirectory;
     }
 }
@@ -176,6 +209,21 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
         await JsonSerializer.SerializeAsync(
             gameDataStream, 
             context.GameMetadata, 
+            new JsonSerializerOptions {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
+            }
+        );
+    }
+
+    private async Task SerializeGameVersion(BuildContext context, GameVersionEntry gameVersionEntry)
+    {
+        context.Log.Information($"Serializing game version entry for build {gameVersionEntry.BuildId} ...");
+        var versionsPath = context.GameDirectory.Combine("versions");
+        await using FileStream versionDataStream = File.OpenWrite(versionsPath.CombineWithFilePath($"{gameVersionEntry.BuildId}.json").FullPath);
+        await JsonSerializer.SerializeAsync(
+            versionDataStream, 
+            gameVersionEntry, 
             new JsonSerializerOptions {
                 DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
                 WriteIndented = true,
@@ -219,7 +267,7 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
                     ManifestId = depot.Manifests["public"].ManifestId,
                 })
                 .ToDictionary(depotVersion => depotVersion.DepotId),
-            FrameworkTargets = context.GameMetadata.GameVersions.Latest()?.FrameworkTargets ?? new List<FrameworkTarget>
+            FrameworkTargets = context.GameVersions.Latest()?.FrameworkTargets ?? new List<FrameworkTarget>
             {
                 new()
                 {
@@ -228,18 +276,11 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
                 },
             },
         };
-        context.GameMetadata.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
-        
-        context.Log.Information("Serializing game metadata ...");
-        await SerializeGameMetadata(context);
-        
-        // Remove the partial entry from the deserialized metadata so we can continue to assume the metadata adheres to its JSON schema
-        context.Log.Information("Removing new version entry from game metadata ...");
-        context.GameMetadata.GameVersions.Remove(newVersionEntry.BuildId);
+        await SerializeGameVersion(context, newVersionEntry);
         
         context.Log.Information("Opening version entry pull request ...");
         context.GitCreateBranch(context.RootDirectory, branchName, true);
-        context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("metadata.json"));
+        context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("versions"));
         context.InferredGitCommit($"add game version entry for {context.GameAppInfo.Name} build {publicBranchInfo.BuildId}");
         context.Command(
             new CommandSettings
@@ -279,7 +320,7 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
     
     public override async Task RunAsync(BuildContext context)
     {
-        var mostRecentKnownVersion = context.GameMetadata.GameVersions.Latest();
+        var mostRecentKnownVersion = context.GameVersions.Latest();
         if (mostRecentKnownVersion == null)
         {
             // If there are no known versions, open a pull request.
@@ -298,7 +339,7 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
         }
         
         // If the current version is known, but not the latest known version, warn and do nothing.
-        if (context.GameMetadata.GameVersions.Values.Any(version => version.BuildId == currentVersion.BuildId))
+        if (context.GameVersions.Values.Any(version => version.BuildId == currentVersion.BuildId))
         {
             context.Log.Warning("Current version is known, but is not latest?");
             return;
@@ -378,7 +419,7 @@ public sealed class CheckPackageVersionsUpToDateTask : AsyncFrostingTaskBase<Bui
     
     private IEnumerable<GameVersionEntry> GetOutdatedVersions(BuildContext context)
     {
-        return context.GameMetadata.GameVersions.Values
+        return context.GameVersions.Values
             .Where(version => VersionOutdated(context, version));
     }
     
@@ -808,6 +849,29 @@ public sealed class PushNuGetTask : FrostingTaskBase<BuildContext>
         };
         foreach (var pkg in context.GetFiles(nugetPath.Combine("*.nupkg").FullPath))
             context.DotNetNuGetPush(pkg, settings);
+    }
+}
+
+[TaskName("DumpGameVersions")]
+[IsDependentOn(typeof(PrepareTask))]
+public sealed class DumpVersionsTask : AsyncFrostingTaskBase<BuildContext>
+{
+    public override async Task RunAsync(BuildContext context)
+    {
+        var versionsPath = context.GameDirectory.Combine("versions");
+        context.EnsureDirectoryExists(versionsPath);
+
+        foreach (var (_, version) in context.GameVersions) {
+            await using FileStream versionDataStream = File.OpenWrite(versionsPath.CombineWithFilePath($"{version.BuildId}.json").FullPath);
+            await JsonSerializer.SerializeAsync(
+                versionDataStream, 
+                version, 
+                new JsonSerializerOptions {
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                    WriteIndented = true,
+                }
+            );
+        }
     }
 }
 

@@ -1,0 +1,26 @@
+{
+  "buildId": 13908317,
+  "timeUpdated": 1711916806,
+  "gameVersion": "50.0.0-beta.0",
+  "depots": [
+    {
+      "depotId": 1966721,
+      "manifestId": 1949108204558832317
+    }
+  ],
+  "frameworkTargets": [
+    {
+      "tfm": "netstandard2.1",
+      "dependencies": [
+        {
+          "name": "UnityEngine.Modules",
+          "version": "2022.3.9"
+        },
+        {
+          "name": "Newtonsoft.JSON",
+          "version": "13.0.3"
+        }
+      ]
+    }
+  ]
+}

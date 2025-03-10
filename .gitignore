@@ -33,6 +33,9 @@
 !/Games/
 /Games/*/*
 !/Games/*/metadata.json
+!/Games/*/versions/
+/Games/*/versions/*
+!/Games/*/versions/*.json
 
 ## Solution
 !/NuGet-GameLib-Dehumidifier.sln
