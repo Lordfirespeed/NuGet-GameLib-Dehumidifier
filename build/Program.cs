@@ -251,7 +251,8 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
         var branches = context.GitBranches(context.RootDirectory);
         if (branches.Any(branch => branch.FriendlyName == $"origin/{branchName}"))
         {
-            throw new Exception("Version entry branch already exists on 'origin', assuming pull request is already open.");
+            Console.WriteLine("Version entry branch already exists on 'origin', assuming pull request is already open.");
+            return;
         }
 
         context.Log.Information("Adding new (partial) version entry to game metadata ...");
