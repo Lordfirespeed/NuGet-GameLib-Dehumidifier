@@ -216,6 +216,21 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
         );
     }
 
+    private async Task SerializeGameVersion(BuildContext context, GameVersionEntry gameVersionEntry)
+    {
+        context.Log.Information($"Serializing game version entry for build {gameVersionEntry.BuildId} ...");
+        var versionsPath = context.GameDirectory.Combine("versions");
+        await using FileStream versionDataStream = File.OpenWrite(versionsPath.CombineWithFilePath($"{gameVersionEntry.BuildId}.json").FullPath);
+        await JsonSerializer.SerializeAsync(
+            versionDataStream, 
+            gameVersionEntry, 
+            new JsonSerializerOptions {
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
+            }
+        );
+    }
+
     private async Task OpenVersionNumberPullRequest(BuildContext context)
     {
         var publicBranchInfo = context.GameAppInfo.Branches["public"];
@@ -261,18 +276,11 @@ public sealed class HandleUnknownSteamBuildTask : AsyncFrostingTaskBase<BuildCon
                 },
             },
         };
-        context.GameVersions.Add(newVersionEntry.BuildId, newVersionEntry);
-        
-        context.Log.Information("Serializing game metadata ...");
-        await SerializeGameMetadata(context);
-        
-        // Remove the partial entry from the deserialized metadata so we can continue to assume the metadata adheres to its JSON schema
-        context.Log.Information("Removing new version entry from game metadata ...");
-        context.GameVersions.Remove(newVersionEntry.BuildId);
+        await SerializeGameVersion(context, newVersionEntry);
         
         context.Log.Information("Opening version entry pull request ...");
         context.GitCreateBranch(context.RootDirectory, branchName, true);
-        context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("metadata.json"));
+        context.GitAdd(context.RootDirectory, context.GameDirectory.CombineWithFilePath("versions"));
         context.InferredGitCommit($"add game version entry for {context.GameAppInfo.Name} build {publicBranchInfo.BuildId}");
         context.Command(
             new CommandSettings
