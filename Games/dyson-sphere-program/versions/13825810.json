@@ -1,0 +1,22 @@
+{
+  "buildId": 13825810,
+  "timeUpdated": 1711129436,
+  "gameVersion": "0.10.28.22015",
+  "depots": [
+    {
+      "depotId": 1366541,
+      "manifestId": 5972978055842355887
+    }
+  ],
+  "frameworkTargets": [
+    {
+      "tfm": "netstandard2.0",
+      "dependencies": [
+        {
+          "name": "UnityEngine.Modules",
+          "version": "2018.4.12"
+        }
+      ]
+    }
+  ]
+}
