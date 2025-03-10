@@ -22,9 +22,6 @@ public class GameMetadata
 	public ProcessSettingsGameMetadata ProcessSettings { get; set; }
 	[JsonPropertyName("nuget")]
 	public NuGetGameMetadata NuGet { get; set; }
-	[JsonPropertyName("gameVersions")]
-	[JsonConverter(typeof(GameVersionMapJsonConverter))]
-	public GameVersionMap GameVersions { get; set; }
 	[JsonIgnore]
 	public IEnumerable<string> NuGetPackageNames => Steam.DistributionDepots.Select(pair => pair.Value)
 		.Select(distribution => $"{NuGet.Name}{distribution.PackageSuffix}");
