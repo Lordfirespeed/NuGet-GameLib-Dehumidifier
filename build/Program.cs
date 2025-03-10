@@ -853,29 +853,6 @@ public sealed class PushNuGetTask : FrostingTaskBase<BuildContext>
     }
 }
 
-[TaskName("DumpGameVersions")]
-[IsDependentOn(typeof(PrepareTask))]
-public sealed class DumpVersionsTask : AsyncFrostingTaskBase<BuildContext>
-{
-    public override async Task RunAsync(BuildContext context)
-    {
-        var versionsPath = context.GameDirectory.Combine("versions");
-        context.EnsureDirectoryExists(versionsPath);
-
-        foreach (var (_, version) in context.GameVersions) {
-            await using FileStream versionDataStream = File.OpenWrite(versionsPath.CombineWithFilePath($"{version.BuildId}.json").FullPath);
-            await JsonSerializer.SerializeAsync(
-                versionDataStream, 
-                version, 
-                new JsonSerializerOptions {
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-                    WriteIndented = true,
-                }
-            );
-        }
-    }
-}
-
 [TaskName("Default")]
 [IsDependentOn(typeof(MakePackagesTask))]
 public class DefaultTask : FrostingTask { }
