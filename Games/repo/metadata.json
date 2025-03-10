@@ -23,7 +23,7 @@
     "isIL2Cpp": false
   },
   "nuget": {
-    "name": "REPO.GameLibs.Steam",
+    "name": "R.E.P.O.GameLibs.Steam",
     "description": "Stripped and publicised game libraries for modding R.E.P.O."
   }
 }
