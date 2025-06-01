@@ -16,7 +16,9 @@ namespace Build.Tasks;
 [IsDependentOn(typeof(FetchSteamAppInfoTask))]
 public class SteamDownloadDepotsTask : SteamCmdTaskBase
 {
-    private static Regex DownloadCompleteRegex = new(
+    private static readonly Regex AnsiPattern = new Regex(@"\x1b\[[;\d]*[A-Za-z]");
+
+    private static readonly Regex DownloadCompleteRegex = new(
         """Depot download complete : "(.*)" \(\d+ files, manifest \d+\)""", 
         RegexOptions.Compiled | 
         RegexOptions.IgnoreCase
@@ -47,6 +49,7 @@ public class SteamDownloadDepotsTask : SteamCmdTaskBase
         {
             var line = await outputManaged.ReadLineAsync();
             if (line == null) continue;
+            line = AnsiPattern.Replace(line, "");
             downloadCompleteMatch = DownloadCompleteRegex.Match(line);
             if (downloadCompleteMatch.Success) break;
         }
