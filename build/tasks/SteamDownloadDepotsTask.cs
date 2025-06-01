@@ -19,7 +19,7 @@ public class SteamDownloadDepotsTask : SteamCmdTaskBase
     private static readonly Regex AnsiPattern = new Regex(@"\x1b\[[;\d]*[A-Za-z]");
 
     private static readonly Regex DownloadCompleteRegex = new(
-        """Depot download complete : "(.*)" \(\d+ files, manifest \d+\)""", 
+        """Depot download complete : "(.*)" \(manifest \d+\)""", 
         RegexOptions.Compiled | 
         RegexOptions.IgnoreCase
     );
