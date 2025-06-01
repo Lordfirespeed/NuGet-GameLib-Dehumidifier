@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Cake.Core;
 using Cake.Core.Diagnostics;
@@ -15,6 +16,8 @@ namespace Build.Tasks;
 [IsDependentOn(typeof(PrepareTask))]
 public class FetchSteamAppInfoTask : SteamCmdTaskBase
 {
+    private static readonly Regex AnsiPattern = new Regex(@"\x1b\[[;\d]*[A-Za-z]");
+    
     protected static readonly KVSerializer VdfSerializer = KVSerializer.Create(KVSerializationFormat.KeyValues1Text);
 
     protected async Task<MemoryStream> ExtractAppInfo(StreamReader rawAppInfoStream)
@@ -28,6 +31,7 @@ public class FetchSteamAppInfoTask : SteamCmdTaskBase
         string? currentLine;
         while ((currentLine = await rawAppInfoStream.ReadLineAsync()) != null)
         {
+            currentLine = AnsiPattern.Replace(currentLine, "");
             if (!withinAppInfo && currentLine.StartsWith("AppID"))
             {
                 withinAppInfo = true;
